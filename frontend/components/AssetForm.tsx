@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { ComponentProps } from "react";
-import type { Asset, AssetType } from "@/types/asset";
+import type { AssetType, NewAsset } from "@/types/asset";
 
 const assetOptions = [
     { name: "Apple", symbol: "AAPL", type: "Stock" as AssetType },
@@ -14,7 +14,7 @@ const assetOptions = [
 ];
 
 type AssetFormProps = {
-    onAddAsset: (asset: Asset) => void;
+    onAddAsset: (asset: NewAsset) => void;
     className?: string;
 };
 

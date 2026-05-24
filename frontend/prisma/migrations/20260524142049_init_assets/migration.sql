@@ -1,0 +1,12 @@
+-- CreateTable
+CREATE TABLE "Asset" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "name" TEXT NOT NULL,
+    "symbol" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "quantity" REAL NOT NULL,
+    "avgCost" REAL NOT NULL,
+    "currentPrice" REAL NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);

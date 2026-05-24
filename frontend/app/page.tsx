@@ -1,45 +1,92 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import PortfolioCard from "@/components/PortfolioCard";
 import AllocationChart from "@/components/AllocationChart";
 import AssetForm from "@/components/AssetForm";
 import AssetTable from "@/components/AssetTable";
-import type { Asset, AssetTab } from "@/types/asset";
-
-const initialAssets: Asset[] = [
-  {
-    name: "Apple",
-    symbol: "AAPL",
-    type: "Stock",
-    quantity: 10,
-    avgCost: 180,
-    currentPrice: 195,
-  },
-  {
-    name: "Bitcoin",
-    symbol: "BTC",
-    type: "Crypto",
-    quantity: 0.2,
-    avgCost: 60000,
-    currentPrice: 67000,
-  },
-  {
-    name: "Tesla",
-    symbol: "TSLA",
-    type: "Stock",
-    quantity: 5,
-    avgCost: 220,
-    currentPrice: 210,
-  },
-];
+import type { Asset, AssetTab, NewAsset } from "@/types/asset";
+import {
+  createAsset,
+  deleteAsset,
+  fetchAssets,
+  updateAsset,
+} from "@/lib/api/assets";
 
 export default function Home() {
-  const [assets, setAssets] = useState<Asset[]>(initialAssets);
+  const [assets, setAssets] = useState<Asset[]>([]);
   const [activeTab, setActiveTab] = useState<AssetTab>("All");
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  function handleAddAsset(asset: Asset) {
-    setAssets((prevAssets) => [...prevAssets, asset]);
+  useEffect(() => {
+    async function loadAssets() {
+      try {
+        setIsLoading(true);
+        setError("");
+        const data = await fetchAssets();
+        setAssets(data);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to load assets.";
+        setError(message);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    void loadAssets();
+  }, []);
+
+  async function handleAddAsset(asset: NewAsset) {
+    try {
+      const createdAsset = await createAsset(asset);
+      setAssets((prevAssets) => [...prevAssets, createdAsset]);
+      setError("");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to create asset.";
+      setError(message);
+    }
+  }
+
+  async function handleDeleteAsset(assetId: string) {
+    try {
+      await deleteAsset(assetId);
+      setAssets((prevAssets) =>
+        prevAssets.filter((asset) => asset.id !== assetId)
+      );
+      setError("");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to delete asset.";
+      setError(message);
+    }
+  }
+
+  async function handleUpdateAsset(updatedAsset: Asset) {
+    try {
+      const payload: NewAsset = {
+        name: updatedAsset.name,
+        symbol: updatedAsset.symbol,
+        type: updatedAsset.type,
+        quantity: updatedAsset.quantity,
+        avgCost: updatedAsset.avgCost,
+        currentPrice: updatedAsset.currentPrice,
+      };
+
+      const savedAsset = await updateAsset(updatedAsset.id, payload);
+      setAssets((prevAssets) =>
+        prevAssets.map((asset) =>
+          asset.id === savedAsset.id ? savedAsset : asset
+        )
+      );
+      setError("");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to update asset.";
+      setError(message);
+    }
   }
 
   const filteredAssets = useMemo(() => {
@@ -56,6 +103,18 @@ export default function Home() {
         <AssetForm onAddAsset={handleAddAsset} className="mb-0" />
       </div>
 
+      {isLoading && (
+        <div className="mb-6 rounded-lg bg-white p-4 text-gray-600 shadow-sm">
+          Loading assets...
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+          {error}
+        </div>
+      )}
+
       <PortfolioCard assets={filteredAssets} />
 
       <AllocationChart allAssets={assets} activeTab={activeTab} />
@@ -64,6 +123,8 @@ export default function Home() {
         assets={filteredAssets}
         activeTab={activeTab}
         onTabChange={setActiveTab}
+        onDeleteAsset={handleDeleteAsset}
+        onUpdateAsset={handleUpdateAsset}
       />
     </main>
   );

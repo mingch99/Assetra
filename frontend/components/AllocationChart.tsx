@@ -110,17 +110,7 @@ export default function AllocationChart({ allAssets, activeTab }: AllocationChar
                 : topSlices;
     }
 
-    let cumulative = 0;
-    const gradientStops = slices.map((slice) => {
-        const start = cumulative;
-        cumulative += slice.percentage;
-        return `${slice.color} ${start}% ${cumulative}%`;
-    });
-
     const hasData = totalValue > 0;
-    const donutBackground = hasData
-        ? `conic-gradient(${gradientStops.join(", ")})`
-        : "#e5e7eb";
     const topLabels = slices.slice(0, 3);
     const title =
         activeTab === "All"
@@ -133,19 +123,25 @@ export default function AllocationChart({ allAssets, activeTab }: AllocationChar
     const strokeWidth = 44;
     const circumference = 2 * Math.PI * radius;
 
-    let startPercentage = 0;
-    const arcSlices = slices.map((slice) => {
+    const arcSlices = slices.reduce<
+        Array<Slice & { dashArray: string; dashOffset: number }>
+    >((acc, slice) => {
+        const startPercentage = acc.reduce(
+            (sum, currentSlice) => sum + currentSlice.percentage,
+            0
+        );
         const segmentLength = (slice.percentage / 100) * circumference;
         const dashArray = `${segmentLength} ${circumference - segmentLength}`;
         const dashOffset = -((startPercentage / 100) * circumference);
-        startPercentage += slice.percentage;
 
-        return {
+        acc.push({
             ...slice,
             dashArray,
             dashOffset,
-        };
-    });
+        });
+
+        return acc;
+    }, []);
 
     return (
         <section className="bg-white rounded-2xl shadow-md p-6 mb-8">
