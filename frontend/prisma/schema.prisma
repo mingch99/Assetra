@@ -15,8 +15,45 @@ enum AssetType {
   Crypto
 }
 
+enum UserActivityType {
+  REGISTER
+  LOGIN
+  DASHBOARD_VIEW
+  ASSET_CREATE
+  ASSET_UPDATE
+  ASSET_DELETE
+}
+
+model User {
+  id           String    @id @default(cuid())
+  username     String    @unique
+  email        String    @unique
+  passwordHash String
+  cashAmount   Float     @default(0)
+  debtAmount   Float     @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lastLoginAt  DateTime?
+  assets       Asset[]
+  sessions     Session[]
+  activities   UserActivity[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([userId])
+}
+
 model Asset {
   id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   name         String
   symbol       String
   type         AssetType
@@ -25,4 +62,17 @@ model Asset {
   currentPrice Float
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model UserActivity {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      UserActivityType
+  createdAt DateTime         @default(now())
+
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
 }

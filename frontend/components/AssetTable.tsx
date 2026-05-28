@@ -1,96 +1,162 @@
-import { useMemo, useState } from "react";
-import type { Asset, AssetTab, AssetType } from "@/types/asset";
+import { useEffect, useMemo, useState } from "react";
+import AssetForm from "@/components/AssetForm";
+import type { Asset, AssetTab, NewAsset } from "@/types/asset";
 
 type AssetTableProps = {
     assets: Asset[];
-    activeTab: AssetTab;
-    onTabChange: (tab: AssetTab) => void;
-    onDeleteAsset: (assetId: string) => void;
-    onUpdateAsset: (asset: Asset) => void;
+    onDeleteAsset: (assetId: string) => Promise<void>;
+    onUpdateAsset: (asset: Asset) => Promise<void>;
+    onAddAsset: (asset: NewAsset) => Promise<void>;
 };
 
-type SortKey = "name" | "marketValue" | "returnRate";
 type SortDirection = "asc" | "desc";
-
-const tabConfig: { key: AssetTab; label: string }[] = [
-    { key: "All", label: "All" },
-    { key: "Stock", label: "Stock" },
-    { key: "Crypto", label: "Crypto" },
-];
-
-function getMarketValue(asset: Asset) {
-    return asset.currentPrice * asset.quantity;
-}
-
-function getCostBasis(asset: Asset) {
-    return asset.avgCost * asset.quantity;
-}
-
-function getReturnRate(asset: Asset) {
-    const costBasis = getCostBasis(asset);
-    if (costBasis === 0) return 0;
-    return ((getMarketValue(asset) - costBasis) / costBasis) * 100;
-}
+type SortKey =
+    | "instrument"
+    | "position"
+    | "avgPrice"
+    | "pl"
+    | "dailyChange"
+    | "costBasis"
+    | "marketValue"
+    | "unrealizedPL"
+    | "unrealizedPLPct";
 
 type EditFormState = {
-    name: string;
-    symbol: string;
-    type: AssetType;
     quantity: string;
     avgCost: string;
-    currentPrice: string;
 };
+
+const filterOptions: AssetTab[] = ["All", "Stock", "Crypto"];
+
+function getCostBasis(asset: Asset) {
+    return asset.quantity * asset.avgCost;
+}
+
+function getMarketValue(asset: Asset) {
+    const effectivePrice = asset.currentPrice > 0 ? asset.currentPrice : asset.avgCost;
+    return asset.quantity * effectivePrice;
+}
+
+function getUnrealizedPL(asset: Asset) {
+    return getMarketValue(asset) - getCostBasis(asset);
+}
+
+function getUnrealizedPLPct(asset: Asset) {
+    const costBasis = getCostBasis(asset);
+    if (costBasis === 0) return 0;
+    return (getUnrealizedPL(asset) / costBasis) * 100;
+}
+
+function getMockDailyChangePct(symbol: string) {
+    const sum = symbol
+        .split("")
+        .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return ((sum % 120) - 60) / 10;
+}
+
+function getMockYtdChangePct(symbol: string) {
+    const sum = symbol
+        .split("")
+        .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return ((sum % 260) - 80) / 10;
+}
+
+function formatSignedNumber(value: number, suffix = "") {
+    const sign = value >= 0 ? "+" : "-";
+    return `${sign}${Math.abs(value).toFixed(2)}${suffix}`;
+}
 
 export default function AssetTable({
     assets,
-    activeTab,
-    onTabChange,
     onDeleteAsset,
     onUpdateAsset,
+    onAddAsset,
 }: AssetTableProps) {
+    const [filterTab, setFilterTab] = useState<AssetTab>("All");
     const [sortKey, setSortKey] = useState<SortKey>("marketValue");
     const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
     const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
+    const [openMenuAssetId, setOpenMenuAssetId] = useState<string | null>(null);
     const [editError, setEditError] = useState("");
     const [editForm, setEditForm] = useState<EditFormState>({
-        name: "",
-        symbol: "",
-        type: "Stock",
         quantity: "",
         avgCost: "",
-        currentPrice: "",
     });
 
+    const filteredAssets = useMemo(() => {
+        if (filterTab === "All") return assets;
+        return assets.filter((asset) => asset.type === filterTab);
+    }, [assets, filterTab]);
+
     const sortedAssets = useMemo(() => {
-        const clonedAssets = [...assets];
+        const clonedAssets = [...filteredAssets];
+
+        function getSortValue(asset: Asset) {
+            switch (sortKey) {
+                case "instrument":
+                    return asset.symbol;
+                case "position":
+                    return asset.quantity;
+                case "avgPrice":
+                    return asset.avgCost;
+                case "pl":
+                    return getUnrealizedPL(asset);
+                case "dailyChange":
+                    return getMockDailyChangePct(asset.symbol);
+                case "costBasis":
+                    return getCostBasis(asset);
+                case "marketValue":
+                    return getMarketValue(asset);
+                case "unrealizedPL":
+                    return getUnrealizedPL(asset);
+                case "unrealizedPLPct":
+                    return getUnrealizedPLPct(asset);
+                default:
+                    return 0;
+            }
+        }
 
         clonedAssets.sort((a, b) => {
-            const directionFactor = sortDirection === "asc" ? 1 : -1;
+            const direction = sortDirection === "asc" ? 1 : -1;
+            const valueA = getSortValue(a);
+            const valueB = getSortValue(b);
 
-            if (sortKey === "name") {
-                return a.name.localeCompare(b.name) * directionFactor;
+            if (typeof valueA === "string" && typeof valueB === "string") {
+                return valueA.localeCompare(valueB) * direction;
             }
-
-            if (sortKey === "marketValue") {
-                return (getMarketValue(a) - getMarketValue(b)) * directionFactor;
-            }
-
-            return (getReturnRate(a) - getReturnRate(b)) * directionFactor;
+            return ((valueA as number) - (valueB as number)) * direction;
         });
 
         return clonedAssets;
-    }, [assets, sortDirection, sortKey]);
+    }, [filteredAssets, sortDirection, sortKey]);
+
+    useEffect(() => {
+        function handleOutsideClick(event: MouseEvent) {
+            const target = event.target as HTMLElement;
+            if (target.closest("[data-asset-menu]")) return;
+            setOpenMenuAssetId(null);
+        }
+
+        document.addEventListener("mousedown", handleOutsideClick);
+        return () => document.removeEventListener("mousedown", handleOutsideClick);
+    }, []);
+
+    function toggleSort(nextSortKey: SortKey) {
+        if (sortKey === nextSortKey) {
+            setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+            return;
+        }
+        setSortKey(nextSortKey);
+        setSortDirection("desc");
+    }
 
     function startEditing(asset: Asset) {
         setEditingAssetId(asset.id);
+        setOpenMenuAssetId(null);
         setEditError("");
         setEditForm({
-            name: asset.name,
-            symbol: asset.symbol,
-            type: asset.type,
             quantity: String(asset.quantity),
             avgCost: String(asset.avgCost),
-            currentPrice: String(asset.currentPrice),
         });
     }
 
@@ -99,314 +165,235 @@ export default function AssetTable({
         setEditError("");
     }
 
-    function saveEditing(assetId: string) {
+    async function saveEditing(asset: Asset) {
         const quantity = Number(editForm.quantity);
         const avgCost = Number(editForm.avgCost);
-        const currentPrice = Number(editForm.currentPrice);
-
-        if (!editForm.name.trim() || !editForm.symbol.trim()) {
-            setEditError("資產名稱與代號不可為空。");
-            return;
-        }
 
         if (Number.isNaN(quantity) || quantity <= 0) {
-            setEditError("數量必須大於 0。");
+            setEditError("Position 必須大於 0。");
             return;
         }
 
         if (Number.isNaN(avgCost) || avgCost < 0) {
-            setEditError("平均成本不可小於 0。");
+            setEditError("Avg. Price 不可小於 0。");
             return;
         }
 
-        if (Number.isNaN(currentPrice) || currentPrice < 0) {
-            setEditError("現價不可小於 0。");
-            return;
+        try {
+            await onUpdateAsset({
+                ...asset,
+                quantity,
+                avgCost,
+            });
+            cancelEditing();
+        } catch (error) {
+            const message =
+                error instanceof Error ? error.message : "更新資產失敗，請稍後再試。";
+            setEditError(message);
         }
+    }
 
-        onUpdateAsset({
-            id: assetId,
-            name: editForm.name.trim(),
-            symbol: editForm.symbol.trim().toUpperCase(),
-            type: editForm.type,
-            quantity,
-            avgCost,
-            currentPrice,
-        });
+    async function confirmDelete(asset: Asset) {
+        setOpenMenuAssetId(null);
+        const confirmed = window.confirm(
+            `是否確定要刪除資產 ${asset.symbol} (${asset.name})？`
+        );
+        if (confirmed) {
+            try {
+                await onDeleteAsset(asset.id);
+            } catch (error) {
+                const message =
+                    error instanceof Error ? error.message : "刪除資產失敗，請稍後再試。";
+                setEditError(message);
+            }
+        }
+    }
 
-        cancelEditing();
+    function renderSortHeader(label: string, sortTarget: SortKey) {
+        const isActive = sortKey === sortTarget;
+        return (
+            <button
+                type="button"
+                className="inline-flex items-center gap-1 hover:text-[var(--foreground)]"
+                onClick={() => toggleSort(sortTarget)}
+            >
+                <span>{label}</span>
+                <span className="text-xs">{isActive ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}</span>
+            </button>
+        );
     }
 
     return (
-        <div className="bg-white rounded-2xl shadow-md p-6">
-            <h2 className="text-2xl font-semibold mb-4">
-                Asset Table
-            </h2>
-
-            <div className="flex flex-wrap gap-3 mb-4">
-                {tabConfig.map((tab) => {
-                    const isActive = activeTab === tab.key;
-
-                    return (
-                        <button
-                            key={tab.key}
-                            type="button"
-                            onClick={() => onTabChange(tab.key)}
-                            className={`rounded-lg border px-4 py-2 text-left transition ${isActive
-                                ? "bg-black text-white border-black"
-                                : "bg-white text-gray-900 border-gray-300"
-                                }`}
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-md p-6">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-2xl font-semibold text-[var(--accent)]">Asset Table</h2>
+                <div className="flex items-center gap-3">
+                    <label className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--muted)]">
+                        <span>Filter</span>
+                        <select
+                            className="rounded bg-transparent text-[var(--foreground)] outline-none"
+                            value={filterTab}
+                            onChange={(e) => setFilterTab(e.target.value as AssetTab)}
                         >
-                            <div className="font-semibold">{tab.label}</div>
-                        </button>
-                    );
-                })}
-            </div>
-
-            <div className="flex flex-wrap gap-3 mb-4">
-                <label className="text-sm text-gray-700">
-                    Sort by
-                    <select
-                        className="ml-2 border rounded-lg px-2 py-1"
-                        value={sortKey}
-                        onChange={(e) => setSortKey(e.target.value as SortKey)}
-                    >
-                        <option value="marketValue">Market Value</option>
-                        <option value="returnRate">Return %</option>
-                        <option value="name">Name</option>
-                    </select>
-                </label>
-
-                <label className="text-sm text-gray-700">
-                    Direction
-                    <select
-                        className="ml-2 border rounded-lg px-2 py-1"
-                        value={sortDirection}
-                        onChange={(e) => setSortDirection(e.target.value as SortDirection)}
-                    >
-                        <option value="desc">Desc</option>
-                        <option value="asc">Asc</option>
-                    </select>
-                </label>
+                            {filterOptions.map((option) => (
+                                <option key={option} value={option} className="text-black">
+                                    {option}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+                    <AssetForm
+                        onAddAsset={onAddAsset}
+                        existingSymbols={assets.map((asset) => asset.symbol)}
+                    />
+                </div>
             </div>
 
             {sortedAssets.length === 0 && (
-                <p className="text-gray-500 mb-4">
-                    尚未有資產，請先新增一筆資料。
-                </p>
+                <p className="mb-4 text-[var(--muted)]">尚未有資產，請先新增一筆資料。</p>
             )}
 
-            <table className="w-full text-left border-collapse">
-                <thead>
-                    <tr className="border-b text-gray-500">
-                        <th className="py-3">Asset</th>
-                        <th className="py-3">Type</th>
-                        <th className="py-3">Quantity</th>
-                        <th className="py-3">Avg Cost</th>
-                        <th className="py-3">Current Price</th>
-                        <th className="py-3">Market Value</th>
-                        <th className="py-3">P/L</th>
-                        <th className="py-3">Return %</th>
-                        <th className="py-3 text-right">Actions</th>
-                    </tr>
-                </thead>
+            <div className="overflow-x-auto">
+                <table className="min-w-[1500px] w-full text-left border-collapse">
+                    <thead>
+                        <tr className="border-b border-[var(--border)] text-[var(--muted)]">
+                            <th className="py-3">Type</th>
+                            <th className="py-3">{renderSortHeader("Instrument", "instrument")}</th>
+                            <th className="py-3">{renderSortHeader("Position", "position")}</th>
+                            <th className="py-3">{renderSortHeader("Avg Price", "avgPrice")}</th>
+                            <th className="py-3">{renderSortHeader("P&L", "pl")}</th>
+                            <th className="py-3">{renderSortHeader("Daily Change (%)", "dailyChange")}</th>
+                            <th className="py-3">{renderSortHeader("Cost Basis", "costBasis")}</th>
+                            <th className="py-3">{renderSortHeader("Market Value", "marketValue")}</th>
+                            <th className="py-3">{renderSortHeader("Unrealized P&L", "unrealizedPL")}</th>
+                            <th className="py-3">{renderSortHeader("Unrealized P&L (%)", "unrealizedPLPct")}</th>
+                            <th className="py-3">YTD Change (%)</th>
+                            <th className="py-3 w-12" />
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sortedAssets.map((asset) => {
+                            const isEditing = editingAssetId === asset.id;
+                            const costBasis = getCostBasis(asset);
+                            const marketValue = getMarketValue(asset);
+                            const unrealizedPL = getUnrealizedPL(asset);
+                            const unrealizedPLPct = getUnrealizedPLPct(asset);
+                            const dailyChangePct = getMockDailyChangePct(asset.symbol);
+                            const ytdChangePct = getMockYtdChangePct(asset.symbol);
 
-                <tbody>
-                    {sortedAssets.map((asset) => {
-                        const isEditing = editingAssetId === asset.id;
-                        const costBasis =
-                            asset.avgCost * asset.quantity;
-
-                        const marketValue =
-                            asset.currentPrice * asset.quantity;
-
-                        const profitLoss =
-                            marketValue - costBasis;
-
-                        const returnRate =
-                            (profitLoss / costBasis) * 100;
-
-                        return (
-                            <tr key={asset.id} className="border-b">
-                                <td className="py-4">
-                                    {isEditing ? (
-                                        <div className="space-y-2">
-                                            <input
-                                                className="w-full border rounded px-2 py-1 text-sm"
-                                                value={editForm.name}
-                                                onChange={(e) =>
-                                                    setEditForm((prev) => ({
-                                                        ...prev,
-                                                        name: e.target.value,
-                                                    }))
-                                                }
-                                            />
-                                            <input
-                                                className="w-full border rounded px-2 py-1 text-sm"
-                                                value={editForm.symbol}
-                                                onChange={(e) =>
-                                                    setEditForm((prev) => ({
-                                                        ...prev,
-                                                        symbol: e.target.value,
-                                                    }))
-                                                }
-                                            />
+                            return (
+                                <tr key={asset.id} className="border-b border-[var(--border)]">
+                                    <td className="py-4">{asset.type}</td>
+                                    <td className="py-4">
+                                        <div>
+                                            <div className="font-semibold">{asset.symbol}</div>
+                                            <div className="text-sm text-[var(--muted)]">{asset.name}</div>
                                         </div>
-                                    ) : (
-                                        <>
-                                            <div className="font-semibold">
-                                                {asset.name}
+                                        {isEditing && (
+                                            <div className="mt-2 flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={cancelEditing}
+                                                    className="rounded border border-[var(--border)] px-3 py-1 text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => saveEditing(asset)}
+                                                    className="rounded bg-[var(--accent)] px-3 py-1 text-xs font-medium text-black hover:bg-[var(--accent-hover)]"
+                                                >
+                                                    Save
+                                                </button>
                                             </div>
-
-                                            <div className="text-sm text-gray-500">
-                                                {asset.symbol}
-                                            </div>
-                                        </>
-                                    )}
-                                </td>
-
-                                <td className="py-4">
-                                    {isEditing ? (
-                                        <select
-                                            className="border rounded px-2 py-1 text-sm"
-                                            value={editForm.type}
-                                            onChange={(e) =>
-                                                setEditForm((prev) => ({
-                                                    ...prev,
-                                                    type: e.target.value as AssetType,
-                                                }))
-                                            }
-                                        >
-                                            <option value="Stock">Stock</option>
-                                            <option value="Crypto">Crypto</option>
-                                        </select>
-                                    ) : (
-                                        asset.type
-                                    )}
-                                </td>
-
-                                <td className="py-4">
-                                    {isEditing ? (
-                                        <input
-                                            type="number"
-                                            className="w-24 border rounded px-2 py-1 text-sm"
-                                            value={editForm.quantity}
-                                            onChange={(e) =>
-                                                setEditForm((prev) => ({
-                                                    ...prev,
-                                                    quantity: e.target.value,
-                                                }))
-                                            }
-                                        />
-                                    ) : (
-                                        asset.quantity
-                                    )}
-                                </td>
-
-                                <td className="py-4">
-                                    {isEditing ? (
-                                        <input
-                                            type="number"
-                                            className="w-24 border rounded px-2 py-1 text-sm"
-                                            value={editForm.avgCost}
-                                            onChange={(e) =>
-                                                setEditForm((prev) => ({
-                                                    ...prev,
-                                                    avgCost: e.target.value,
-                                                }))
-                                            }
-                                        />
-                                    ) : (
-                                        `$${asset.avgCost}`
-                                    )}
-                                </td>
-
-                                <td className="py-4">
-                                    {isEditing ? (
-                                        <input
-                                            type="number"
-                                            className="w-24 border rounded px-2 py-1 text-sm"
-                                            value={editForm.currentPrice}
-                                            onChange={(e) =>
-                                                setEditForm((prev) => ({
-                                                    ...prev,
-                                                    currentPrice: e.target.value,
-                                                }))
-                                            }
-                                        />
-                                    ) : (
-                                        `$${asset.currentPrice}`
-                                    )}
-                                </td>
-
-                                <td className="py-4">
-                                    ${marketValue.toFixed(2)}
-                                </td>
-
-                                <td
-                                    className={`py-4 font-semibold ${profitLoss >= 0
-                                        ? "text-green-600"
-                                        : "text-red-600"
-                                        }`}
-                                >
-                                    ${profitLoss.toFixed(2)}
-                                </td>
-
-                                <td
-                                    className={`py-4 font-semibold ${returnRate >= 0
-                                        ? "text-green-600"
-                                        : "text-red-600"
-                                        }`}
-                                >
-                                    {returnRate.toFixed(2)}%
-                                </td>
-
-                                <td className="py-4 text-right">
-                                    {isEditing ? (
-                                        <div className="flex justify-end gap-2">
+                                        )}
+                                    </td>
+                                    <td className="py-4">
+                                        {isEditing ? (
+                                            <input
+                                                type="number"
+                                                value={editForm.quantity}
+                                                onChange={(e) =>
+                                                    setEditForm((prev) => ({ ...prev, quantity: e.target.value }))
+                                                }
+                                                className="w-24 rounded border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 text-sm text-[var(--foreground)]"
+                                            />
+                                        ) : (
+                                            asset.quantity
+                                        )}
+                                    </td>
+                                    <td className="py-4">
+                                        {isEditing ? (
+                                            <input
+                                                type="number"
+                                                value={editForm.avgCost}
+                                                onChange={(e) =>
+                                                    setEditForm((prev) => ({ ...prev, avgCost: e.target.value }))
+                                                }
+                                                className="w-24 rounded border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 text-sm text-[var(--foreground)]"
+                                            />
+                                        ) : (
+                                            `$${asset.avgCost.toFixed(2)}`
+                                        )}
+                                    </td>
+                                    <td className={`py-4 font-semibold ${unrealizedPL >= 0 ? "text-green-500" : "text-red-400"}`}>
+                                        {formatSignedNumber(unrealizedPL, "")}
+                                    </td>
+                                    <td className={`py-4 font-semibold ${dailyChangePct >= 0 ? "text-green-500" : "text-red-400"}`}>
+                                        {formatSignedNumber(dailyChangePct, "%")}
+                                    </td>
+                                    <td className="py-4">${costBasis.toFixed(2)}</td>
+                                    <td className="py-4">${marketValue.toFixed(2)}</td>
+                                    <td className={`py-4 font-semibold ${unrealizedPL >= 0 ? "text-green-500" : "text-red-400"}`}>
+                                        {formatSignedNumber(unrealizedPL, "")}
+                                    </td>
+                                    <td className={`py-4 font-semibold ${unrealizedPLPct >= 0 ? "text-green-500" : "text-red-400"}`}>
+                                        {formatSignedNumber(unrealizedPLPct, "%")}
+                                    </td>
+                                    <td className={`py-4 font-semibold ${ytdChangePct >= 0 ? "text-green-500" : "text-red-400"}`}>
+                                        {formatSignedNumber(ytdChangePct, "%")}
+                                    </td>
+                                    <td className="py-4 text-right">
+                                        <div className="relative" data-asset-menu>
                                             <button
                                                 type="button"
-                                                className="rounded border border-gray-300 px-3 py-1 text-sm"
-                                                onClick={cancelEditing}
+                                                className="rounded px-2 py-1 text-lg leading-none text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]"
+                                                onClick={() =>
+                                                    setOpenMenuAssetId((prev) =>
+                                                        prev === asset.id ? null : asset.id
+                                                    )
+                                                }
                                             >
-                                                Cancel
+                                                ⋯
                                             </button>
-                                            <button
-                                                type="button"
-                                                className="rounded bg-black px-3 py-1 text-sm text-white"
-                                                onClick={() => saveEditing(asset.id)}
-                                            >
-                                                Save
-                                            </button>
+                                            {openMenuAssetId === asset.id && !isEditing && (
+                                                <div className="absolute right-0 z-20 mt-2 w-32 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-1 shadow-lg">
+                                                    <button
+                                                        type="button"
+                                                        className="block w-full rounded px-3 py-2 text-left text-sm hover:bg-[var(--surface)]"
+                                                        onClick={() => startEditing(asset)}
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className="block w-full rounded px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/10"
+                                                        onClick={() => confirmDelete(asset)}
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
-                                    ) : (
-                                        <div className="flex justify-end gap-2">
-                                            <button
-                                                type="button"
-                                                className="rounded border border-gray-300 px-3 py-1 text-sm"
-                                                onClick={() => startEditing(asset)}
-                                            >
-                                                Edit
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className="rounded border border-red-300 px-3 py-1 text-sm text-red-600"
-                                                onClick={() => onDeleteAsset(asset.id)}
-                                            >
-                                                Delete
-                                            </button>
-                                        </div>
-                                    )}
-                                </td>
-                            </tr>
-                        );
-                    })}
-                </tbody>
-            </table>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
 
-            {editError && (
-                <p className="mt-3 text-sm text-red-600">{editError}</p>
-            )}
+            {editError && <p className="mt-3 text-sm text-red-400">{editError}</p>}
         </div>
     );
 }

@@ -3,35 +3,6 @@ import type { Asset, AssetType, NewAsset } from "@/types/asset";
 
 type AssetUpdateInput = Omit<Asset, "id">;
 
-const defaultAssets: NewAsset[] = [
-  {
-    name: "Apple",
-    symbol: "AAPL",
-    type: "Stock",
-    quantity: 10,
-    avgCost: 180,
-    currentPrice: 195,
-  },
-  {
-    name: "Bitcoin",
-    symbol: "BTC",
-    type: "Crypto",
-    quantity: 0.2,
-    avgCost: 60000,
-    currentPrice: 67000,
-  },
-  {
-    name: "Tesla",
-    symbol: "TSLA",
-    type: "Stock",
-    quantity: 5,
-    avgCost: 220,
-    currentPrice: 210,
-  },
-];
-
-let hasSeededDefaults = false;
-
 function isAssetType(value: unknown): value is AssetType {
   return value === "Stock" || value === "Crypto";
 }
@@ -84,56 +55,54 @@ function validateAssetPayload(payload: unknown): {
   };
 }
 
-async function seedDefaultsIfEmpty() {
-  if (hasSeededDefaults) return;
-
-  const count = await prisma.asset.count();
-  if (count > 0) {
-    hasSeededDefaults = true;
-    return;
-  }
-
-  await prisma.asset.createMany({
-    data: defaultAssets,
-  });
-  hasSeededDefaults = true;
-}
-
-export async function listAssets() {
-  await seedDefaultsIfEmpty();
+export async function listAssets(userId: string) {
   return prisma.asset.findMany({
+    where: { userId },
     orderBy: { createdAt: "asc" },
   });
 }
 
-export function getAssetById(id: string) {
-  return prisma.asset.findUnique({
-    where: { id },
+export function getAssetById(id: string, userId: string) {
+  return prisma.asset.findFirst({
+    where: { id, userId },
   });
 }
 
-export function createAsset(input: NewAsset) {
-  return prisma.asset.create({
-    data: input,
+export async function createAsset(input: NewAsset, userId: string) {
+  const existing = await prisma.asset.findFirst({
+    where: {
+      userId,
+      symbol: input.symbol,
+    },
   });
-}
 
-export function updateAsset(id: string, input: AssetUpdateInput) {
-  return prisma.asset.update({
-    where: { id },
-    data: input,
-  });
-}
-
-export async function deleteAsset(id: string) {
-  try {
-    await prisma.asset.delete({
-      where: { id },
-    });
-    return true;
-  } catch {
-    return false;
+  if (existing) {
+    throw new Error("Asset symbol already exists for this user.");
   }
+
+  return prisma.asset.create({
+    data: {
+      ...input,
+      userId,
+    },
+  });
+}
+
+export function updateAsset(id: string, input: AssetUpdateInput, userId: string) {
+  return prisma.asset.updateMany({
+    where: { id, userId },
+    data: input,
+  }).then(async (result) => {
+    if (result.count === 0) return null;
+    return prisma.asset.findUnique({ where: { id } });
+  });
+}
+
+export async function deleteAsset(id: string, userId: string) {
+  const result = await prisma.asset.deleteMany({
+    where: { id, userId },
+  });
+  return result.count > 0;
 }
 
 export function parseAssetPayload(payload: unknown) {
