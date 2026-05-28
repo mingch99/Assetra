@@ -1,6 +1,10 @@
 # macOS
 .DS_Store
 
+# SQLite database
+frontend/prisma/dev.db
+frontend/prisma/dev.db-journal
+
 # Logs
 logs
 *.log
