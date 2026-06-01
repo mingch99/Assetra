@@ -1,35 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentProps } from "react";
 import type { AssetType, NewAsset } from "@/types/asset";
-
-type AssetOption = {
-    name: string;
-    symbol: string;
-    type: AssetType;
-};
-
-const assetOptions = [
-    { name: "Apple", symbol: "AAPL", type: "Stock" as AssetType },
-    { name: "Amazon", symbol: "AMZN", type: "Stock" as AssetType },
-    { name: "Alphabet", symbol: "GOOG", type: "Stock" as AssetType },
-    { name: "Meta Platforms", symbol: "META", type: "Stock" as AssetType },
-    { name: "Palantir", symbol: "PLTR", type: "Stock" as AssetType },
-    { name: "SoFi Technologies", symbol: "SOFI", type: "Stock" as AssetType },
-    { name: "Taiwan Semiconductor", symbol: "TSM", type: "Stock" as AssetType },
-    { name: "Vanguard S&P 500 ETF", symbol: "VOO", type: "Stock" as AssetType },
-    { name: "Interactive Brokers", symbol: "IBKR", type: "Stock" as AssetType },
-    { name: "Tesla", symbol: "TSLA", type: "Stock" as AssetType },
-    { name: "Nvidia", symbol: "NVDA", type: "Stock" as AssetType },
-    { name: "Microsoft", symbol: "MSFT", type: "Stock" as AssetType },
-    { name: "Bitcoin", symbol: "BTC", type: "Crypto" as AssetType },
-    { name: "Ethereum", symbol: "ETH", type: "Crypto" as AssetType },
-    { name: "XRP", symbol: "XRP", type: "Crypto" as AssetType },
-    { name: "BNB", symbol: "BNB", type: "Crypto" as AssetType },
-    { name: "Solana", symbol: "SOL", type: "Crypto" as AssetType },
-    { name: "Tether", symbol: "USDT", type: "Crypto" as AssetType },
-];
+import { searchSymbols } from "@/lib/api/symbols";
+import type { SymbolSearchResult } from "@/lib/api/symbols";
 
 type AssetFormProps = {
     onAddAsset: (asset: NewAsset) => Promise<void>;
@@ -50,6 +25,9 @@ export default function AssetForm({
     const [error, setError] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
     const [isSearchOpen, setIsSearchOpen] = useState(false);
+    const [searchResults, setSearchResults] = useState<SymbolSearchResult[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const searchInputRef = useRef<HTMLInputElement>(null);
 
     const [formData, setFormData] = useState({
         name: "",
@@ -59,27 +37,52 @@ export default function AssetForm({
         avgCost: "",
     });
 
+    // 表單打開時自動聚焦搜尋框，會觸發 onFocus 把下拉選單展開。
+    useEffect(() => {
+        if (isOpen) {
+            searchInputRef.current?.focus();
+        }
+    }, [isOpen]);
+
+    // 依關鍵字向 API 查詢對應標的（debounce 300ms）。
+    useEffect(() => {
+        // 已選定標的時不再搜尋。
+        if (formData.symbol) return;
+
+        const query = searchQuery.trim();
+        const handle = window.setTimeout(async () => {
+            if (query.length < 1) {
+                setSearchResults([]);
+                return;
+            }
+            setIsSearching(true);
+            try {
+                const results = await searchSymbols(query);
+                setSearchResults(results);
+            } catch {
+                setSearchResults([]);
+            } finally {
+                setIsSearching(false);
+            }
+        }, 300);
+
+        return () => window.clearTimeout(handle);
+    }, [searchQuery, formData.symbol]);
+
     const existingSymbolSet = useMemo(
         () => new Set(existingSymbols.map((symbol) => symbol.trim().toUpperCase())),
         [existingSymbols]
     );
 
-    const filteredAssetOptions = useMemo(() => {
-        const query = searchQuery.trim().toLowerCase();
+    const visibleResults = useMemo(
+        () =>
+            searchResults.filter(
+                (result) => !existingSymbolSet.has(result.symbol.toUpperCase())
+            ),
+        [existingSymbolSet, searchResults]
+    );
 
-        return assetOptions.filter((asset) => {
-            if (existingSymbolSet.has(asset.symbol.toUpperCase())) {
-                return false;
-            }
-            if (!query) return true;
-            return (
-                asset.symbol.toLowerCase().includes(query) ||
-                asset.name.toLowerCase().includes(query)
-            );
-        });
-    }, [existingSymbolSet, searchQuery]);
-
-    function handleSelectAsset(asset: AssetOption) {
+    function handleSelectAsset(asset: SymbolSearchResult) {
         setFormData({
             ...formData,
             name: asset.name,
@@ -87,6 +90,7 @@ export default function AssetForm({
             type: asset.type,
         });
         setSearchQuery(`${asset.symbol} - ${asset.name}`);
+        setSearchResults([]);
         setIsSearchOpen(false);
     }
 
@@ -189,35 +193,59 @@ export default function AssetForm({
                             <label className="mb-1 block text-sm font-medium text-[var(--muted)]">
                                 Instrument
                             </label>
-                            <input
-                                type="text"
-                                placeholder="Search symbol or company"
-                                value={searchQuery}
-                                onChange={(e) => handleSearchChange(e.target.value)}
-                                onFocus={() => setIsSearchOpen(true)}
-                                onBlur={handleSearchBlur}
-                                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3 text-[var(--foreground)] placeholder:text-[var(--muted)]/70"
-                            />
-                            {isSearchOpen && filteredAssetOptions.length > 0 && (
+                            <div className="relative">
+                                <input
+                                    ref={searchInputRef}
+                                    type="text"
+                                    placeholder="Search stocks or crypto"
+                                    value={searchQuery}
+                                    onChange={(e) => handleSearchChange(e.target.value)}
+                                    onFocus={() => setIsSearchOpen(true)}
+                                    onClick={() => setIsSearchOpen(true)}
+                                    onBlur={handleSearchBlur}
+                                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3 pr-9 text-[var(--foreground)] placeholder:text-[var(--muted)]/70"
+                                />
+                                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)]">
+                                    ▾
+                                </span>
+                            </div>
+                            {isSearchOpen && (
                                 <div className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg">
-                                    {filteredAssetOptions.map((asset) => (
-                                        <button
-                                            key={asset.symbol}
-                                            type="button"
-                                            onMouseDown={(e) => {
-                                                e.preventDefault();
-                                                handleSelectAsset(asset);
-                                            }}
-                                            className="w-full px-3 py-2 text-left hover:bg-[var(--surface-2)]"
-                                        >
-                                            <div className="font-semibold text-[var(--foreground)]">
-                                                {asset.symbol}
-                                            </div>
-                                            <div className="text-sm text-[var(--muted)]">
-                                                {asset.name}
-                                            </div>
-                                        </button>
-                                    ))}
+                                    {isSearching ? (
+                                        <div className="px-3 py-2 text-sm text-[var(--muted)]">
+                                            Searching...
+                                        </div>
+                                    ) : visibleResults.length > 0 ? (
+                                        visibleResults.map((asset) => (
+                                            <button
+                                                key={`${asset.type}-${asset.symbol}`}
+                                                type="button"
+                                                onMouseDown={(e) => {
+                                                    e.preventDefault();
+                                                    handleSelectAsset(asset);
+                                                }}
+                                                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left hover:bg-[var(--surface-2)]"
+                                            >
+                                                <span>
+                                                    <span className="font-semibold text-[var(--foreground)]">
+                                                        {asset.symbol}
+                                                    </span>
+                                                    <span className="ml-2 text-sm text-[var(--muted)]">
+                                                        {asset.name}
+                                                    </span>
+                                                </span>
+                                                <span className="shrink-0 rounded border border-[var(--border)] px-2 py-0.5 text-xs text-[var(--muted)]">
+                                                    {asset.type}
+                                                </span>
+                                            </button>
+                                        ))
+                                    ) : (
+                                        <div className="px-3 py-2 text-sm text-[var(--muted)]">
+                                            {searchQuery.trim()
+                                                ? "Search not found"
+                                                : "Search stocks or crypto"}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>

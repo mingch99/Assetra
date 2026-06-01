@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import PortfolioCard from "@/components/PortfolioCard";
 import AllocationChart from "@/components/AllocationChart";
 import AssetTable from "@/components/AssetTable";
+import UserMenu from "@/components/UserMenu";
 import type { Asset, NewAsset } from "@/types/asset";
 import {
   createAsset,
@@ -16,6 +17,8 @@ import {
   fetchPortfolioState,
   savePortfolioState,
 } from "@/lib/api/portfolio";
+import { fetchQuotes } from "@/lib/api/quotes";
+import type { QuoteMap } from "@/lib/api/quotes";
 import { logout, me } from "@/lib/api/auth";
 import type { AuthUser } from "@/lib/api/auth";
 
@@ -26,11 +29,13 @@ export default function DashboardPage() {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [error, setError] = useState("");
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [cashAmount, setCashAmount] = useState(0);
   const [debtAmount, setDebtAmount] = useState(0);
   const [isPortfolioLoaded, setIsPortfolioLoaded] = useState(false);
   const didSavePortfolioRef = useRef(false);
+  const [quotes, setQuotes] = useState<QuoteMap>({});
+  const [isRefreshingQuotes, setIsRefreshingQuotes] = useState(false);
+  const [quotesUpdatedAt, setQuotesUpdatedAt] = useState<Date | null>(null);
 
   useEffect(() => {
     async function loadSession() {
@@ -54,13 +59,16 @@ export default function DashboardPage() {
       try {
         setIsLoading(true);
         setError("");
-        const [assetsData, portfolioData] = await Promise.all([
+        const [assetsData, portfolioData, quotesData] = await Promise.all([
           fetchAssets(),
           fetchPortfolioState(),
+          fetchQuotes().catch(() => ({} as QuoteMap)),
         ]);
         setAssets(assetsData);
         setCashAmount(portfolioData.cashAmount);
         setDebtAmount(portfolioData.debtAmount);
+        setQuotes(quotesData);
+        setQuotesUpdatedAt(new Date());
         setIsPortfolioLoaded(true);
       } catch (err) {
         const message =
@@ -73,6 +81,47 @@ export default function DashboardPage() {
 
     void loadDashboardData();
   }, [currentUser, isAuthLoading]);
+
+  const refreshQuotes = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
+    if (!silent) setIsRefreshingQuotes(true);
+    try {
+      const quotesData = await fetchQuotes();
+      setQuotes(quotesData);
+      setQuotesUpdatedAt(new Date());
+    } catch (err) {
+      // 自動（背景）更新失敗時不打擾使用者，僅手動更新才顯示錯誤。
+      if (!silent) {
+        const message =
+          err instanceof Error ? err.message : "更新報價失敗，請稍後再試。";
+        setError(message);
+      }
+    } finally {
+      if (!silent) setIsRefreshingQuotes(false);
+    }
+  }, []);
+
+  // 每 60 秒自動更新報價；分頁切到背景時暫停以節省 API 額度。
+  useEffect(() => {
+    if (!isPortfolioLoaded) return;
+
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void refreshQuotes({ silent: true });
+      }
+    }, 60000);
+
+    return () => window.clearInterval(timer);
+  }, [isPortfolioLoaded, refreshQuotes]);
+
+  const assetsWithPrices = useMemo(
+    () =>
+      assets.map((asset) => {
+        const live = quotes[asset.symbol.trim().toUpperCase()];
+        return live ? { ...asset, currentPrice: live.price } : asset;
+      }),
+    [assets, quotes]
+  );
 
   useEffect(() => {
     if (!isPortfolioLoaded || isAuthLoading || !currentUser) return;
@@ -195,33 +244,27 @@ export default function DashboardPage() {
       <div className="mb-6 flex items-start justify-between gap-4">
         <h1 className="text-4xl font-bold text-[var(--accent)]">Assetra Portfolio Dashboard</h1>
         <div className="flex items-center gap-3">
-          <div className="relative">
+          <div className="flex flex-col items-end">
             <button
               type="button"
-              onClick={() => setIsUserMenuOpen((prev) => !prev)}
-              className="h-11 w-11 rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--accent)] font-semibold"
+              onClick={() => refreshQuotes()}
+              disabled={isRefreshingQuotes}
+              className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--surface-2)] transition disabled:opacity-60"
             >
-              {currentUser.username.charAt(0).toUpperCase()}
+              {isRefreshingQuotes ? "更新中..." : "更新報價"}
             </button>
-            {isUserMenuOpen && (
-              <div className="absolute right-0 mt-2 w-64 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-lg">
-                <p className="text-sm text-[var(--muted)]">目前用戶</p>
-                <p className="mt-1 font-semibold text-[var(--foreground)]">
-                  {currentUser.username}
-                </p>
-                {currentUser.email && (
-                  <p className="text-sm text-[var(--muted)]">{currentUser.email}</p>
-                )}
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="mt-4 w-full rounded-lg border border-red-500/40 px-3 py-2 text-sm font-semibold text-red-400 hover:bg-red-500/10"
-                >
-                  登出
-                </button>
-              </div>
+            {quotesUpdatedAt && (
+              <span className="mt-1 text-xs text-[var(--muted)]">
+                報價更新於 {quotesUpdatedAt.toLocaleTimeString()}
+              </span>
             )}
           </div>
+          <UserMenu
+            user={currentUser}
+            onUserUpdate={setCurrentUser}
+            onLogout={handleLogout}
+            onAccountDeleted={() => router.replace("/")}
+          />
         </div>
       </div>
 
@@ -238,17 +281,18 @@ export default function DashboardPage() {
       )}
 
       <PortfolioCard
-        assets={assets}
+        assets={assetsWithPrices}
         cashAmount={cashAmount}
         debtAmount={debtAmount}
         onCashAmountChange={setCashAmount}
         onDebtAmountChange={setDebtAmount}
       />
 
-      <AllocationChart allAssets={assets} cashAmount={cashAmount} />
+      <AllocationChart allAssets={assetsWithPrices} cashAmount={cashAmount} />
 
       <AssetTable
-        assets={assets}
+        assets={assetsWithPrices}
+        quotes={quotes}
         onDeleteAsset={handleDeleteAsset}
         onUpdateAsset={handleUpdateAsset}
         onAddAsset={handleAddAsset}

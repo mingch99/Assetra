@@ -26,7 +26,7 @@ enum UserActivityType {
 
 model User {
   id           String    @id @default(cuid())
-  username     String    @unique
+  username     String?   @unique
   email        String    @unique
   passwordHash String
   cashAmount   Float     @default(0)
@@ -37,6 +37,7 @@ model User {
   assets       Asset[]
   sessions     Session[]
   activities   UserActivity[]
+  passwordResetTokens PasswordResetToken[]
 }
 
 model Session {
@@ -46,6 +47,18 @@ model Session {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   expiresAt DateTime
+
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 
   @@index([userId])
 }

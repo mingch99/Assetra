@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ComponentProps } from "react";
 import { login, register } from "@/lib/api/auth";
@@ -11,7 +12,6 @@ type FormSubmitEvent = Parameters<
 export default function Home() {
   const router = useRouter();
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
@@ -21,18 +21,12 @@ export default function Home() {
     e.preventDefault();
     setError("");
 
-    if (!username.trim() || !password.trim()) {
-      setError("請輸入帳號與密碼。");
-      return;
-    }
-
-    if (mode === "register" && !email.trim()) {
-      setError("註冊時請輸入信箱。");
+    if (!email.trim() || !password.trim()) {
+      setError("請輸入信箱與密碼。");
       return;
     }
 
     const payload = {
-      username: username.trim(),
       email: email.trim(),
       password: password.trim(),
     };
@@ -88,14 +82,14 @@ export default function Home() {
         <form className="space-y-4" onSubmit={handleAuthSubmit}>
           <div>
             <label className="mb-1 block text-sm font-medium text-[var(--muted)]">
-              帳號
+              信箱
             </label>
             <input
               type="text"
               placeholder="請輸入帳號"
               className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-[var(--foreground)] placeholder:text-[var(--muted)]/70"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
             />
           </div>
 
@@ -105,36 +99,22 @@ export default function Home() {
             </label>
             <input
               type="password"
-              placeholder="請輸入密碼"
+              placeholder={mode === "register" ? "請設定密碼（至少 6 碼）" : "請輸入密碼"}
+              autoComplete={mode === "register" ? "new-password" : "current-password"}
               className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-[var(--foreground)] placeholder:text-[var(--muted)]/70"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
 
-          {mode === "register" && (
-            <div>
-              <label className="mb-1 block text-sm font-medium text-[var(--muted)]">
-                信箱
-              </label>
-              <input
-                type="email"
-                placeholder="請輸入信箱"
-                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-[var(--foreground)] placeholder:text-[var(--muted)]/70"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-          )}
-
           {mode === "login" && (
             <div className="text-right">
-              <button
-                type="button"
+              <Link
+                href="/forgot-password"
                 className="text-sm text-[var(--muted)] hover:text-[var(--accent)]"
               >
                 忘記密碼？
-              </button>
+              </Link>
             </div>
           )}
 
@@ -146,8 +126,8 @@ export default function Home() {
             {isSubmitting
               ? "處理中..."
               : mode === "login"
-              ? "登入"
-              : "註冊並登入"}
+                ? "登入"
+                : "註冊並登入"}
           </button>
 
           {error && <p className="text-sm text-red-400">{error}</p>}

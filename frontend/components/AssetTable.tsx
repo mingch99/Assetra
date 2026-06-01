@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import AssetForm from "@/components/AssetForm";
 import type { Asset, AssetTab, NewAsset } from "@/types/asset";
+import type { QuoteMap } from "@/lib/api/quotes";
 
 type AssetTableProps = {
     assets: Asset[];
+    quotes: QuoteMap;
     onDeleteAsset: (assetId: string) => Promise<void>;
     onUpdateAsset: (asset: Asset) => Promise<void>;
     onAddAsset: (asset: NewAsset) => Promise<void>;
@@ -14,6 +16,7 @@ type SortKey =
     | "instrument"
     | "position"
     | "avgPrice"
+    | "currentPrice"
     | "pl"
     | "dailyChange"
     | "costBasis"
@@ -47,27 +50,26 @@ function getUnrealizedPLPct(asset: Asset) {
     return (getUnrealizedPL(asset) / costBasis) * 100;
 }
 
-function getMockDailyChangePct(symbol: string) {
-    const sum = symbol
-        .split("")
-        .reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return ((sum % 120) - 60) / 10;
-}
-
-function getMockYtdChangePct(symbol: string) {
-    const sum = symbol
-        .split("")
-        .reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return ((sum % 260) - 80) / 10;
-}
-
 function formatSignedNumber(value: number, suffix = "") {
     const sign = value >= 0 ? "+" : "-";
     return `${sign}${Math.abs(value).toFixed(2)}${suffix}`;
 }
 
+function getDailyChangePct(quotes: QuoteMap, symbol: string): number | null {
+    const quote = quotes[symbol.trim().toUpperCase()];
+    return quote && typeof quote.changePct === "number" ? quote.changePct : null;
+}
+
+// 當日損益 = 持有量 ×（現價 − 昨收）。昨收由現價與當日漲跌幅回推。
+function getDailyPL(asset: Asset, changePct: number | null): number | null {
+    if (changePct === null || asset.currentPrice <= 0) return null;
+    const prevClose = asset.currentPrice / (1 + changePct / 100);
+    return asset.quantity * (asset.currentPrice - prevClose);
+}
+
 export default function AssetTable({
     assets,
+    quotes,
     onDeleteAsset,
     onUpdateAsset,
     onAddAsset,
@@ -99,10 +101,14 @@ export default function AssetTable({
                     return asset.quantity;
                 case "avgPrice":
                     return asset.avgCost;
+                case "currentPrice":
+                    return asset.currentPrice;
                 case "pl":
-                    return getUnrealizedPL(asset);
+                    return (
+                        getDailyPL(asset, getDailyChangePct(quotes, asset.symbol)) ?? 0
+                    );
                 case "dailyChange":
-                    return getMockDailyChangePct(asset.symbol);
+                    return getDailyChangePct(quotes, asset.symbol) ?? 0;
                 case "costBasis":
                     return getCostBasis(asset);
                 case "marketValue":
@@ -128,7 +134,7 @@ export default function AssetTable({
         });
 
         return clonedAssets;
-    }, [filteredAssets, sortDirection, sortKey]);
+    }, [filteredAssets, quotes, sortDirection, sortKey]);
 
     useEffect(() => {
         function handleOutsideClick(event: MouseEvent) {
@@ -254,20 +260,20 @@ export default function AssetTable({
             )}
 
             <div className="overflow-x-auto">
-                <table className="min-w-[1500px] w-full text-left border-collapse">
+                <table className="min-w-[1650px] w-full text-left border-collapse">
                     <thead>
                         <tr className="border-b border-[var(--border)] text-[var(--muted)]">
                             <th className="py-3">Type</th>
                             <th className="py-3">{renderSortHeader("Instrument", "instrument")}</th>
                             <th className="py-3">{renderSortHeader("Position", "position")}</th>
+                            <th className="py-3">{renderSortHeader("Last", "currentPrice")}</th>
                             <th className="py-3">{renderSortHeader("Avg Price", "avgPrice")}</th>
                             <th className="py-3">{renderSortHeader("P&L", "pl")}</th>
-                            <th className="py-3">{renderSortHeader("Daily Change (%)", "dailyChange")}</th>
+                            <th className="py-3">{renderSortHeader("Daily (%)", "dailyChange")}</th>
                             <th className="py-3">{renderSortHeader("Cost Basis", "costBasis")}</th>
                             <th className="py-3">{renderSortHeader("Market Value", "marketValue")}</th>
                             <th className="py-3">{renderSortHeader("Unrealized P&L", "unrealizedPL")}</th>
                             <th className="py-3">{renderSortHeader("Unrealized P&L (%)", "unrealizedPLPct")}</th>
-                            <th className="py-3">YTD Change (%)</th>
                             <th className="py-3 w-12" />
                         </tr>
                     </thead>
@@ -278,17 +284,14 @@ export default function AssetTable({
                             const marketValue = getMarketValue(asset);
                             const unrealizedPL = getUnrealizedPL(asset);
                             const unrealizedPLPct = getUnrealizedPLPct(asset);
-                            const dailyChangePct = getMockDailyChangePct(asset.symbol);
-                            const ytdChangePct = getMockYtdChangePct(asset.symbol);
+                            const dailyChangePct = getDailyChangePct(quotes, asset.symbol);
+                            const dailyPL = getDailyPL(asset, dailyChangePct);
 
                             return (
                                 <tr key={asset.id} className="border-b border-[var(--border)]">
                                     <td className="py-4">{asset.type}</td>
                                     <td className="py-4">
-                                        <div>
-                                            <div className="font-semibold">{asset.symbol}</div>
-                                            <div className="text-sm text-[var(--muted)]">{asset.name}</div>
-                                        </div>
+                                        <div className="font-semibold">{asset.symbol}</div>
                                         {isEditing && (
                                             <div className="mt-2 flex gap-2">
                                                 <button
@@ -323,6 +326,11 @@ export default function AssetTable({
                                         )}
                                     </td>
                                     <td className="py-4">
+                                        {asset.currentPrice > 0
+                                            ? `$${asset.currentPrice.toFixed(2)}`
+                                            : "—"}
+                                    </td>
+                                    <td className="py-4">
                                         {isEditing ? (
                                             <input
                                                 type="number"
@@ -336,11 +344,23 @@ export default function AssetTable({
                                             `$${asset.avgCost.toFixed(2)}`
                                         )}
                                     </td>
-                                    <td className={`py-4 font-semibold ${unrealizedPL >= 0 ? "text-green-500" : "text-red-400"}`}>
-                                        {formatSignedNumber(unrealizedPL, "")}
+                                    <td className="py-4 font-semibold">
+                                        {dailyPL === null ? (
+                                            <span className="text-[var(--muted)]">—</span>
+                                        ) : (
+                                            <span className={dailyPL >= 0 ? "text-green-500" : "text-red-400"}>
+                                                {formatSignedNumber(dailyPL, "")}
+                                            </span>
+                                        )}
                                     </td>
-                                    <td className={`py-4 font-semibold ${dailyChangePct >= 0 ? "text-green-500" : "text-red-400"}`}>
-                                        {formatSignedNumber(dailyChangePct, "%")}
+                                    <td className="py-4 font-semibold">
+                                        {dailyChangePct === null ? (
+                                            <span className="text-[var(--muted)]">—</span>
+                                        ) : (
+                                            <span className={dailyChangePct >= 0 ? "text-green-500" : "text-red-400"}>
+                                                {formatSignedNumber(dailyChangePct, "%")}
+                                            </span>
+                                        )}
                                     </td>
                                     <td className="py-4">${costBasis.toFixed(2)}</td>
                                     <td className="py-4">${marketValue.toFixed(2)}</td>
@@ -349,9 +369,6 @@ export default function AssetTable({
                                     </td>
                                     <td className={`py-4 font-semibold ${unrealizedPLPct >= 0 ? "text-green-500" : "text-red-400"}`}>
                                         {formatSignedNumber(unrealizedPLPct, "%")}
-                                    </td>
-                                    <td className={`py-4 font-semibold ${ytdChangePct >= 0 ? "text-green-500" : "text-red-400"}`}>
-                                        {formatSignedNumber(ytdChangePct, "%")}
                                     </td>
                                     <td className="py-4 text-right">
                                         <div className="relative" data-asset-menu>

@@ -8,14 +8,13 @@ type ApiError = {
 
 type AuthUser = {
   id: string;
-  username: string;
+  username: string | null;
   email: string;
 };
 
 type AuthInput = {
-  username: string;
+  email: string;
   password: string;
-  email?: string;
 };
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -71,6 +70,48 @@ export function logout() {
   return request<{ ok: boolean }>("/api/auth/logout", {
     method: "POST",
   });
+}
+
+export function requestPasswordReset(email: string) {
+  return request<{ message: string }>("/api/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function resetPassword(input: { token: string; password: string }) {
+  return request<{ message: string }>("/api/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateProfile(input: { username: string | null }) {
+  return request<AuthUser>("/api/auth/profile", {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}
+
+export function changePassword(input: {
+  currentPassword: string;
+  newPassword: string;
+}) {
+  return request<{ message: string }>("/api/auth/password", {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteAccount(password: string) {
+  return request<{ message: string }>("/api/auth/account", {
+    method: "DELETE",
+    body: JSON.stringify({ password }),
+  });
+}
+
+export function getDisplayName(user: Pick<AuthUser, "username" | "email">) {
+  return user.username && user.username.trim() ? user.username : user.email;
 }
 
 export type { AuthUser };

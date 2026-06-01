@@ -26,6 +26,18 @@ export async function createSession(userId: string) {
   });
 }
 
+export async function clearOtherSessions(userId: string) {
+  const cookieStore = await cookies();
+  const currentToken = cookieStore.get(SESSION_COOKIE)?.value;
+
+  await prisma.session.deleteMany({
+    where: {
+      userId,
+      ...(currentToken ? { token: { not: currentToken } } : {}),
+    },
+  });
+}
+
 export async function clearSession() {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
