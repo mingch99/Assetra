@@ -55,6 +55,33 @@ function formatSignedNumber(value: number, suffix = "") {
     return `${sign}${Math.abs(value).toFixed(2)}${suffix}`;
 }
 
+// 股票部位 4 位小數；加密貨幣 8 位小數。
+function formatPosition(asset: Asset) {
+    const decimals = asset.type === "Crypto" ? 8 : 4;
+    return asset.quantity.toFixed(decimals);
+}
+
+// 價格與金額：絕對值 ≥ 1000 四捨五入到整數，否則保留 2 位小數。
+function formatPrice(value: number) {
+    if (Math.abs(value) >= 1000) {
+        return `$${Math.round(value).toLocaleString(undefined, {
+            maximumFractionDigits: 0,
+        })}`;
+    }
+    return `$${value.toFixed(2)}`;
+}
+
+function formatSignedMoney(value: number) {
+    const sign = value >= 0 ? "+" : "-";
+    const abs = Math.abs(value);
+    if (abs >= 1000) {
+        return `${sign}$${Math.round(abs).toLocaleString(undefined, {
+            maximumFractionDigits: 0,
+        })}`;
+    }
+    return `${sign}$${abs.toFixed(2)}`;
+}
+
 function getDailyChangePct(quotes: QuoteMap, symbol: string): number | null {
     const quote = quotes[symbol.trim().toUpperCase()];
     return quote && typeof quote.changePct === "number" ? quote.changePct : null;
@@ -322,12 +349,12 @@ export default function AssetTable({
                                                 className="w-24 rounded border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 text-sm text-[var(--foreground)]"
                                             />
                                         ) : (
-                                            asset.quantity
+                                            formatPosition(asset)
                                         )}
                                     </td>
                                     <td className="py-4">
                                         {asset.currentPrice > 0
-                                            ? `$${asset.currentPrice.toFixed(2)}`
+                                            ? formatPrice(asset.currentPrice)
                                             : "—"}
                                     </td>
                                     <td className="py-4">
@@ -341,7 +368,7 @@ export default function AssetTable({
                                                 className="w-24 rounded border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 text-sm text-[var(--foreground)]"
                                             />
                                         ) : (
-                                            `$${asset.avgCost.toFixed(2)}`
+                                            formatPrice(asset.avgCost)
                                         )}
                                     </td>
                                     <td className="py-4 font-semibold">
@@ -349,7 +376,7 @@ export default function AssetTable({
                                             <span className="text-[var(--muted)]">—</span>
                                         ) : (
                                             <span className={dailyPL >= 0 ? "text-green-500" : "text-red-400"}>
-                                                {formatSignedNumber(dailyPL, "")}
+                                                {formatSignedMoney(dailyPL)}
                                             </span>
                                         )}
                                     </td>
@@ -362,10 +389,10 @@ export default function AssetTable({
                                             </span>
                                         )}
                                     </td>
-                                    <td className="py-4">${costBasis.toFixed(2)}</td>
-                                    <td className="py-4">${marketValue.toFixed(2)}</td>
+                                    <td className="py-4">{formatPrice(costBasis)}</td>
+                                    <td className="py-4">{formatPrice(marketValue)}</td>
                                     <td className={`py-4 font-semibold ${unrealizedPL >= 0 ? "text-green-500" : "text-red-400"}`}>
-                                        {formatSignedNumber(unrealizedPL, "")}
+                                        {formatSignedMoney(unrealizedPL)}
                                     </td>
                                     <td className={`py-4 font-semibold ${unrealizedPLPct >= 0 ? "text-green-500" : "text-red-400"}`}>
                                         {formatSignedNumber(unrealizedPLPct, "%")}
