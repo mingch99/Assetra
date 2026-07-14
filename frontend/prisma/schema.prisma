@@ -12,6 +12,7 @@ datasource db {
 
 enum AssetType {
   Stock
+  ETF
   Crypto
 }
 
@@ -25,18 +26,20 @@ enum UserActivityType {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  username     String?   @unique
-  email        String    @unique
-  passwordHash String
-  cashAmount   Float     @default(0)
-  debtAmount   Float     @default(0)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  lastLoginAt  DateTime?
-  assets       Asset[]
-  sessions     Session[]
-  activities   UserActivity[]
+  id               String    @id @default(cuid())
+  username         String?   @unique
+  email            String    @unique
+  passwordHash     String
+  cashAmount       Float     @default(0)
+  debtAmount       Float     @default(0)
+  realEstateAmount Float     @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  lastLoginAt      DateTime?
+  assets           Asset[]
+  groups           AssetGroup[]
+  sessions         Session[]
+  activities       UserActivity[]
   passwordResetTokens PasswordResetToken[]
 }
 
@@ -63,20 +66,35 @@ model PasswordResetToken {
   @@index([userId])
 }
 
+model AssetGroup {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  assets    Asset[]
+
+  @@index([userId])
+}
+
 model Asset {
-  id           String    @id @default(cuid())
+  id           String      @id @default(cuid())
   userId       String
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groupId      String?
+  group        AssetGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
   name         String
   symbol       String
   type         AssetType
   quantity     Float
   avgCost      Float
   currentPrice Float
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
 
   @@index([userId])
+  @@index([groupId])
 }
 
 model UserActivity {

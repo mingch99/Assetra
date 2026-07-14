@@ -5,12 +5,15 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { ComponentProps } from "react";
 import { resetPassword } from "@/lib/api/auth";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
+import { useI18n } from "@/lib/i18n/LanguageProvider";
 
 type FormSubmitEvent = Parameters<
   NonNullable<ComponentProps<"form">["onSubmit"]>
 >[0];
 
 function ResetPasswordForm() {
+  const { t } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token") ?? "";
@@ -28,32 +31,31 @@ function ResetPasswordForm() {
     setMessage("");
 
     if (!token) {
-      setError("連結無效，請重新申請密碼重設。");
+      setError(t("resetInvalidLink"));
       return;
     }
 
     if (password.length < 6) {
-      setError("密碼至少需要 6 個字元。");
+      setError(t("resetPasswordMin"));
       return;
     }
 
     if (password !== confirmPassword) {
-      setError("兩次輸入的密碼不一致。");
+      setError(t("resetPasswordMismatch"));
       return;
     }
 
     try {
       setIsSubmitting(true);
       const result = await resetPassword({ token, password });
-      setMessage(result.message);
+      setMessage(result.message || t("resetSuccess"));
       setIsDone(true);
       window.setTimeout(() => {
         router.push("/");
       }, 1500);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "重設失敗，請稍後再試。";
-      setError(message);
+      const msg = err instanceof Error ? err.message : t("resetFailed");
+      setError(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -63,13 +65,13 @@ function ResetPasswordForm() {
     return (
       <div className="space-y-4">
         <p className="rounded-lg border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-300">
-          連結無效或缺少重設參數，請重新申請密碼重設。
+          {t("resetInvalidOrMissing")}
         </p>
         <Link
           href="/forgot-password"
-          className="block w-full rounded-lg bg-[var(--accent)] px-4 py-2 text-center font-semibold text-black hover:bg-[var(--accent-hover)] transition"
+          className="block w-full rounded-lg bg-[var(--accent)] px-4 py-2 text-center font-semibold text-black transition hover:bg-[var(--accent-hover)]"
         >
-          重新申請
+          {t("resetRequestAgain")}
         </Link>
       </div>
     );
@@ -83,9 +85,9 @@ function ResetPasswordForm() {
         </p>
         <Link
           href="/"
-          className="block w-full rounded-lg bg-[var(--accent)] px-4 py-2 text-center font-semibold text-black hover:bg-[var(--accent-hover)] transition"
+          className="block w-full rounded-lg bg-[var(--accent)] px-4 py-2 text-center font-semibold text-black transition hover:bg-[var(--accent-hover)]"
         >
-          前往登入
+          {t("resetGoToLogin")}
         </Link>
       </div>
     );
@@ -95,11 +97,11 @@ function ResetPasswordForm() {
     <form className="space-y-4" onSubmit={handleSubmit}>
       <div>
         <label className="mb-1 block text-sm font-medium text-[var(--muted)]">
-          新密碼
+          {t("resetNewPassword")}
         </label>
         <input
           type="password"
-          placeholder="請設定新密碼（至少 6 碼）"
+          placeholder={t("resetNewPasswordPlaceholder")}
           autoComplete="new-password"
           className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-[var(--foreground)] placeholder:text-[var(--muted)]/70"
           value={password}
@@ -109,11 +111,11 @@ function ResetPasswordForm() {
 
       <div>
         <label className="mb-1 block text-sm font-medium text-[var(--muted)]">
-          確認新密碼
+          {t("resetConfirmPassword")}
         </label>
         <input
           type="password"
-          placeholder="請再次輸入新密碼"
+          placeholder={t("resetConfirmPasswordPlaceholder")}
           autoComplete="new-password"
           className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-[var(--foreground)] placeholder:text-[var(--muted)]/70"
           value={confirmPassword}
@@ -124,9 +126,9 @@ function ResetPasswordForm() {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="block w-full rounded-lg bg-[var(--accent)] px-4 py-2 text-center font-semibold text-black hover:bg-[var(--accent-hover)] transition disabled:opacity-60"
+        className="block w-full rounded-lg bg-[var(--accent)] px-4 py-2 text-center font-semibold text-black transition hover:bg-[var(--accent-hover)] disabled:opacity-60"
       >
-        {isSubmitting ? "更新中..." : "更新密碼"}
+        {isSubmitting ? t("resetSubmitting") : t("resetSubmit")}
       </button>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
@@ -135,15 +137,22 @@ function ResetPasswordForm() {
 }
 
 export default function ResetPasswordPage() {
+  const { t } = useI18n();
+
   return (
-    <main className="min-h-screen bg-[var(--background)] text-[var(--foreground)] flex items-center justify-center p-6">
+    <main className="flex min-h-screen items-center justify-center bg-[var(--background)] p-6 text-[var(--foreground)]">
+      <div className="absolute right-6 top-6">
+        <LanguageSwitcher />
+      </div>
       <div className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 shadow-xl shadow-black/30">
-        <h1 className="text-3xl font-bold text-center mb-2">重設密碼</h1>
-        <p className="text-center text-[var(--muted)] mb-6">
-          設定一組新密碼，完成後請重新登入。
+        <h1 className="mb-2 text-center text-3xl font-bold">{t("resetTitle")}</h1>
+        <p className="mb-6 text-center text-[var(--muted)]">
+          {t("resetDescription")}
         </p>
         <Suspense
-          fallback={<p className="text-center text-[var(--muted)]">載入中...</p>}
+          fallback={
+            <p className="text-center text-[var(--muted)]">{t("loading")}</p>
+          }
         >
           <ResetPasswordForm />
         </Suspense>

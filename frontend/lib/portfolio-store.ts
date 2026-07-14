@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 export type PortfolioState = {
   cashAmount: number;
   debtAmount: number;
+  realEstateAmount: number;
 };
 
 type ParseResult =
@@ -16,17 +17,19 @@ function toNonNegativeNumber(value: unknown): number | null {
 }
 
 export async function getPortfolioState(userId: string): Promise<PortfolioState> {
-  const rows = await prisma.$queryRaw<Array<{ cashAmount: number; debtAmount: number }>>`
-    SELECT "cashAmount", "debtAmount"
-    FROM "User"
-    WHERE "id" = ${userId}
-    LIMIT 1
-  `;
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      cashAmount: true,
+      debtAmount: true,
+      realEstateAmount: true,
+    },
+  });
 
-  const row = rows[0];
   return {
-    cashAmount: row?.cashAmount ?? 0,
-    debtAmount: row?.debtAmount ?? 0,
+    cashAmount: user?.cashAmount ?? 0,
+    debtAmount: user?.debtAmount ?? 0,
+    realEstateAmount: user?.realEstateAmount ?? 0,
   };
 }
 
@@ -34,12 +37,14 @@ export async function updatePortfolioState(
   userId: string,
   input: PortfolioState
 ): Promise<PortfolioState> {
-  await prisma.$executeRaw`
-    UPDATE "User"
-    SET "cashAmount" = ${input.cashAmount},
-        "debtAmount" = ${input.debtAmount}
-    WHERE "id" = ${userId}
-  `;
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      cashAmount: input.cashAmount,
+      debtAmount: input.debtAmount,
+      realEstateAmount: input.realEstateAmount,
+    },
+  });
   return getPortfolioState(userId);
 }
 
@@ -51,6 +56,7 @@ export function parsePortfolioPayload(payload: unknown): ParseResult {
   const candidate = payload as Record<string, unknown>;
   const cashAmount = toNonNegativeNumber(candidate.cashAmount);
   const debtAmount = toNonNegativeNumber(candidate.debtAmount);
+  const realEstateAmount = toNonNegativeNumber(candidate.realEstateAmount);
 
   if (cashAmount === null) {
     return { ok: false, message: "cashAmount must be a number >= 0." };
@@ -58,6 +64,9 @@ export function parsePortfolioPayload(payload: unknown): ParseResult {
   if (debtAmount === null) {
     return { ok: false, message: "debtAmount must be a number >= 0." };
   }
+  if (realEstateAmount === null) {
+    return { ok: false, message: "realEstateAmount must be a number >= 0." };
+  }
 
-  return { ok: true, data: { cashAmount, debtAmount } };
+  return { ok: true, data: { cashAmount, debtAmount, realEstateAmount } };
 }

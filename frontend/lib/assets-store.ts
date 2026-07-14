@@ -1,14 +1,32 @@
 import { prisma } from "@/lib/prisma";
-import type { Asset, AssetType, NewAsset } from "@/types/asset";
+import type { AssetType, NewAsset } from "@/types/asset";
 
-type AssetUpdateInput = Omit<Asset, "id">;
+type AssetUpdateInput = {
+  name: string;
+  symbol: string;
+  type: AssetType;
+  quantity: number;
+  avgCost: number;
+  currentPrice: number;
+  groupId?: string | null;
+};
 
 function isAssetType(value: unknown): value is AssetType {
-  return value === "Stock" || value === "Crypto";
+  return value === "Stock" || value === "ETF" || value === "Crypto";
 }
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
+}
+
+function parseGroupId(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  return undefined;
 }
 
 function validateAssetPayload(payload: unknown): {
@@ -23,15 +41,20 @@ function validateAssetPayload(payload: unknown): {
   const candidate = payload as Record<string, unknown>;
   const name = typeof candidate.name === "string" ? candidate.name.trim() : "";
   const symbol =
-    typeof candidate.symbol === "string" ? candidate.symbol.trim().toUpperCase() : "";
+    typeof candidate.symbol === "string"
+      ? candidate.symbol.trim().toUpperCase()
+      : "";
   const type = candidate.type;
   const quantity = candidate.quantity;
   const avgCost = candidate.avgCost;
   const currentPrice = candidate.currentPrice;
+  const groupId = parseGroupId(candidate.groupId);
 
   if (!name) return { ok: false, message: "name is required." };
   if (!symbol) return { ok: false, message: "symbol is required." };
-  if (!isAssetType(type)) return { ok: false, message: "type must be Stock or Crypto." };
+  if (!isAssetType(type)) {
+    return { ok: false, message: "type must be Stock, ETF, or Crypto." };
+  }
   if (!isFiniteNumber(quantity) || quantity <= 0) {
     return { ok: false, message: "quantity must be a number greater than 0." };
   }
@@ -40,6 +63,9 @@ function validateAssetPayload(payload: unknown): {
   }
   if (!isFiniteNumber(currentPrice) || currentPrice < 0) {
     return { ok: false, message: "currentPrice must be a number >= 0." };
+  }
+  if (candidate.groupId !== undefined && groupId === undefined) {
+    return { ok: false, message: "groupId must be a string or null." };
   }
 
   return {
@@ -51,13 +77,19 @@ function validateAssetPayload(payload: unknown): {
       quantity,
       avgCost,
       currentPrice,
+      groupId: groupId ?? null,
     },
   };
 }
 
+const assetInclude = {
+  group: { select: { id: true, name: true } },
+} as const;
+
 export async function listAssets(userId: string) {
   return prisma.asset.findMany({
     where: { userId },
+    include: assetInclude,
     orderBy: { createdAt: "asc" },
   });
 }
@@ -65,36 +97,65 @@ export async function listAssets(userId: string) {
 export function getAssetById(id: string, userId: string) {
   return prisma.asset.findFirst({
     where: { id, userId },
+    include: assetInclude,
   });
+}
+
+async function assertOwnedGroup(
+  userId: string,
+  groupId: string | null | undefined
+) {
+  if (!groupId) return;
+  const group = await prisma.assetGroup.findFirst({
+    where: { id: groupId, userId },
+  });
+  if (!group) {
+    throw new Error("Group not found.");
+  }
 }
 
 export async function createAsset(input: NewAsset, userId: string) {
-  const existing = await prisma.asset.findFirst({
-    where: {
-      userId,
-      symbol: input.symbol,
-    },
-  });
-
-  if (existing) {
-    throw new Error("Asset symbol already exists for this user.");
-  }
+  await assertOwnedGroup(userId, input.groupId);
 
   return prisma.asset.create({
     data: {
-      ...input,
+      name: input.name,
+      symbol: input.symbol,
+      type: input.type,
+      quantity: input.quantity,
+      avgCost: input.avgCost,
+      currentPrice: input.currentPrice,
+      groupId: input.groupId ?? null,
       userId,
     },
+    include: assetInclude,
   });
 }
 
-export function updateAsset(id: string, input: AssetUpdateInput, userId: string) {
-  return prisma.asset.updateMany({
-    where: { id, userId },
-    data: input,
-  }).then(async (result) => {
-    if (result.count === 0) return null;
-    return prisma.asset.findUnique({ where: { id } });
+export async function updateAsset(
+  id: string,
+  input: AssetUpdateInput,
+  userId: string
+) {
+  const existing = await getAssetById(id, userId);
+  if (!existing) return null;
+
+  const nextGroupId =
+    input.groupId === undefined ? existing.groupId : input.groupId;
+  await assertOwnedGroup(userId, nextGroupId);
+
+  return prisma.asset.update({
+    where: { id },
+    data: {
+      name: input.name,
+      symbol: input.symbol,
+      type: input.type,
+      quantity: input.quantity,
+      avgCost: input.avgCost,
+      currentPrice: input.currentPrice,
+      ...(input.groupId !== undefined ? { groupId: input.groupId } : {}),
+    },
+    include: assetInclude,
   });
 }
 

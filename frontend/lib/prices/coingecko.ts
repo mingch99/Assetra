@@ -46,11 +46,21 @@ const SUPPORTED_COINS: CoinDef[] = [
   { symbol: "SAND", name: "The Sandbox", id: "the-sandbox" },
   { symbol: "MANA", name: "Decentraland", id: "decentraland" },
   { symbol: "PEPE", name: "Pepe", id: "pepe" },
+  { symbol: "CRO", name: "Cronos", id: "crypto-com-chain" },
+  {
+    symbol: "PREOPAI",
+    name: "OpenAI (Republic Pre-IPO)",
+    id: "openai-republic-pre-ipo",
+  },
 ];
 
 const SYMBOL_TO_COINGECKO_ID: Record<string, string> = Object.fromEntries(
   SUPPORTED_COINS.map((coin) => [coin.symbol, coin.id])
 );
+
+export function getCoinGeckoIdBySymbol(symbol: string): string | undefined {
+  return SYMBOL_TO_COINGECKO_ID[symbol.trim().toUpperCase()];
+}
 
 // 可報價的加密貨幣清單（提供給搜尋下拉使用）。
 export const SUPPORTED_CRYPTO: { symbol: string; name: string }[] =

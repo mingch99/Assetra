@@ -8,6 +8,7 @@ import {
   updateProfile,
 } from "@/lib/api/auth";
 import type { AuthUser } from "@/lib/api/auth";
+import { useI18n } from "@/lib/i18n/LanguageProvider";
 
 type UserMenuProps = {
   user: AuthUser;
@@ -24,6 +25,7 @@ export default function UserMenu({
   onLogout,
   onAccountDeleted,
 }: UserMenuProps) {
+  const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [view, setView] = useState<MenuView>("main");
@@ -94,10 +96,10 @@ export default function UserMenu({
       });
       onUserUpdate(updatedUser);
       setNicknameInput(updatedUser.username ?? "");
-      setNicknameMessage("已更新暱稱。");
+      setNicknameMessage(t("nicknameUpdated"));
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "更新暱稱失敗，請稍後再試。";
+        err instanceof Error ? err.message : t("nicknameUpdateFailed");
       setNicknameMessage(message);
     } finally {
       setIsSavingNickname(false);
@@ -109,15 +111,15 @@ export default function UserMenu({
     setPasswordError("");
 
     if (!currentPassword) {
-      setPasswordError("請輸入目前密碼。");
+      setPasswordError(t("enterCurrentPassword"));
       return;
     }
     if (newPassword.length < 6) {
-      setPasswordError("新密碼至少需要 6 個字元。");
+      setPasswordError(t("newPasswordMinError"));
       return;
     }
     if (newPassword !== confirmPassword) {
-      setPasswordError("兩次輸入的新密碼不一致。");
+      setPasswordError(t("passwordsDoNotMatch"));
       return;
     }
 
@@ -130,7 +132,7 @@ export default function UserMenu({
       setConfirmPassword("");
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "更新密碼失敗，請稍後再試。";
+        err instanceof Error ? err.message : t("passwordUpdateFailed");
       setPasswordError(message);
     } finally {
       setIsSavingPassword(false);
@@ -141,7 +143,7 @@ export default function UserMenu({
     setDeleteError("");
 
     if (!deletePassword) {
-      setDeleteError("請輸入密碼以確認刪除。");
+      setDeleteError(t("enterPasswordToConfirm"));
       return;
     }
 
@@ -151,7 +153,7 @@ export default function UserMenu({
       onAccountDeleted();
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "刪除帳號失敗，請稍後再試。";
+        err instanceof Error ? err.message : t("deleteAccountFailed");
       setDeleteError(message);
       setIsDeleting(false);
     }
@@ -189,14 +191,14 @@ export default function UserMenu({
                   }}
                   className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--surface)] transition"
                 >
-                  設定
+                  {t("settings")}
                 </button>
                 <button
                   type="button"
                   onClick={onLogout}
                   className="w-full rounded-lg border border-red-500/40 px-3 py-2 text-sm font-semibold text-red-400 hover:bg-red-500/10 transition"
                 >
-                  登出
+                  {t("logOut")}
                 </button>
               </div>
             </div>
@@ -208,20 +210,20 @@ export default function UserMenu({
                   onClick={() => setView("main")}
                   className="text-sm text-[var(--muted)] hover:text-[var(--accent)]"
                 >
-                  ← 返回
+                  ← {t("back")}
                 </button>
                 <p className="text-sm font-semibold text-[var(--foreground)]">
-                  設定
+                  {t("settings")}
                 </p>
               </div>
 
               <div className="mt-4 border-t border-[var(--border)] pt-4">
                 <label className="mb-1 block text-sm font-medium text-[var(--muted)]">
-                  更換暱稱（未設定時顯示信箱）
+                  {t("nicknameLabel")}
                 </label>
                 <input
                   type="text"
-                  placeholder="設定你的暱稱"
+                  placeholder={t("nicknamePlaceholder")}
                   maxLength={30}
                   value={nicknameInput}
                   onChange={(e) => setNicknameInput(e.target.value)}
@@ -233,7 +235,7 @@ export default function UserMenu({
                   disabled={isSavingNickname}
                   className="mt-2 w-full rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-black hover:bg-[var(--accent-hover)] transition disabled:opacity-60"
                 >
-                  {isSavingNickname ? "儲存中..." : "儲存暱稱"}
+                  {isSavingNickname ? t("saving") : t("saveNickname")}
                 </button>
                 {nicknameMessage && (
                   <p className="mt-2 text-xs text-[var(--muted)]">
@@ -244,11 +246,11 @@ export default function UserMenu({
 
               <div className="mt-4 border-t border-[var(--border)] pt-4">
                 <label className="mb-1 block text-sm font-medium text-[var(--muted)]">
-                  更換密碼
+                  {t("changePassword")}
                 </label>
                 <input
                   type="password"
-                  placeholder="目前密碼"
+                  placeholder={t("currentPassword")}
                   autoComplete="current-password"
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
@@ -256,7 +258,7 @@ export default function UserMenu({
                 />
                 <input
                   type="password"
-                  placeholder="新密碼（至少 6 碼）"
+                  placeholder={t("newPasswordMin")}
                   autoComplete="new-password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
@@ -264,7 +266,7 @@ export default function UserMenu({
                 />
                 <input
                   type="password"
-                  placeholder="確認新密碼"
+                  placeholder={t("confirmNewPassword")}
                   autoComplete="new-password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
@@ -276,7 +278,7 @@ export default function UserMenu({
                   disabled={isSavingPassword}
                   className="mt-2 w-full rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-black hover:bg-[var(--accent-hover)] transition disabled:opacity-60"
                 >
-                  {isSavingPassword ? "更新中..." : "更新密碼"}
+                  {isSavingPassword ? t("updating") : t("updatePassword")}
                 </button>
                 {passwordError && (
                   <p className="mt-2 text-xs text-red-400">{passwordError}</p>
@@ -290,7 +292,7 @@ export default function UserMenu({
 
               <div className="mt-4 border-t border-[var(--border)] pt-4">
                 <label className="mb-1 block text-sm font-medium text-red-400">
-                  危險區域
+                  {t("dangerZone")}
                 </label>
                 {!isConfirmingDelete ? (
                   <button
@@ -302,16 +304,16 @@ export default function UserMenu({
                     }}
                     className="w-full rounded-lg border border-red-500/40 px-3 py-2 text-sm font-semibold text-red-400 hover:bg-red-500/10 transition"
                   >
-                    刪除帳號
+                    {t("deleteAccount")}
                   </button>
                 ) : (
                   <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3">
                     <p className="text-xs text-red-300">
-                      確定要刪除帳號嗎？此動作無法復原，將永久刪除你的帳號與所有資產、設定等資料。請輸入密碼以確認。
+                      {t("deleteAccountWarning")}
                     </p>
                     <input
                       type="password"
-                      placeholder="輸入密碼以確認"
+                      placeholder={t("passwordToConfirm")}
                       autoComplete="current-password"
                       value={deletePassword}
                       onChange={(e) => setDeletePassword(e.target.value)}
@@ -328,7 +330,7 @@ export default function UserMenu({
                         disabled={isDeleting}
                         className="flex-1 rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--surface-2)] transition disabled:opacity-60"
                       >
-                        取消
+                        {t("cancel")}
                       </button>
                       <button
                         type="button"
@@ -336,7 +338,7 @@ export default function UserMenu({
                         disabled={isDeleting}
                         className="flex-1 rounded-lg bg-red-500 px-3 py-2 text-sm font-semibold text-white hover:bg-red-600 transition disabled:opacity-60"
                       >
-                        {isDeleting ? "刪除中..." : "確定刪除"}
+                        {isDeleting ? t("deleting") : t("confirmDelete")}
                       </button>
                     </div>
                     {deleteError && (

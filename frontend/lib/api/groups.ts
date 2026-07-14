@@ -1,26 +1,11 @@
+import type { AssetGroup, NewAssetGroup } from "@/types/asset";
+
 type ApiSuccess<T> = {
   data: T;
 };
 
 type ApiError = {
   error?: string;
-};
-
-export type PortfolioState = {
-  cashAmount: number;
-  debtAmount: number;
-  realEstateAmount: number;
-};
-
-export type HistoryPoint = {
-  date: string;
-  value: number;
-};
-
-export type PortfolioHistoryResponse = {
-  range: string;
-  points: HistoryPoint[];
-  warning?: string;
 };
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -47,23 +32,29 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return json.data;
 }
 
-export function fetchPortfolioState() {
-  return request<PortfolioState>("/api/portfolio", {
+export function fetchGroups() {
+  return request<AssetGroup[]>("/api/groups", {
     method: "GET",
     cache: "no-store",
   });
 }
 
-export function savePortfolioState(input: PortfolioState) {
-  return request<PortfolioState>("/api/portfolio", {
-    method: "PUT",
+export function createGroup(input: NewAssetGroup) {
+  return request<AssetGroup>("/api/groups", {
+    method: "POST",
     body: JSON.stringify(input),
   });
 }
 
-export function fetchPortfolioHistory(range: string) {
-  return request<PortfolioHistoryResponse>(
-    `/api/portfolio/history?range=${encodeURIComponent(range)}`,
-    { method: "GET", cache: "no-store" }
-  );
+export function updateGroupName(id: string, name: string) {
+  return request<AssetGroup>(`/api/groups/${id}`, {
+    method: "PUT",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function deleteGroup(id: string) {
+  return request<{ ok: boolean }>(`/api/groups/${id}`, {
+    method: "DELETE",
+  });
 }
