@@ -107,3 +107,22 @@ model UserActivity {
   @@index([userId, createdAt])
   @@index([type, createdAt])
 }
+
+/// Daily OHLCV bars for the portfolio risk engine (shared market data, not per-user).
+model DailyMarketPrice {
+  id        String   @id @default(cuid())
+  symbol    String
+  date      DateTime @db.Date
+  open      Float?
+  high      Float?
+  low       Float?
+  close     Float
+  adjClose  Float?
+  volume    BigInt?
+  source    String   @default("yahoo")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([symbol, date])
+  @@index([symbol, date])
+}
