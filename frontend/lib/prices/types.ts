@@ -21,5 +21,8 @@ export type QuoteMap = Record<string, Quote>;
  * 目前只支援美股與加密貨幣。
  */
 export function resolveMarket(asset: QuoteAsset): Market {
+  if (asset.type === "Cash") {
+    throw new Error(`Cash asset ${asset.symbol} has no market quote source.`);
+  }
   return asset.type === "Crypto" ? "crypto" : "us";
 }

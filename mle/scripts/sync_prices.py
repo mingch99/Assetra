@@ -74,6 +74,7 @@ def main() -> None:
     failed = 0
     total_rows = 0
 
+    # 遍歷所有Symbol，並取得Daily Market Price並存到DailyMarketPrice Table [ETL Pipeline]
     for store_symbol, asset_type in targets:
         yahoo_symbol = yahoo_ticker_for(store_symbol, asset_type)
         try:
@@ -89,7 +90,8 @@ def main() -> None:
             ok += 1
             total_rows += count
         except Exception as exc:  # noqa: BLE001 — keep sync going per symbol
-            print(f"  FAIL {store_symbol} (yahoo={yahoo_symbol}): {exc}", file=sys.stderr)
+            print(
+                f"  FAIL {store_symbol} (yahoo={yahoo_symbol}): {exc}", file=sys.stderr)
             failed += 1
         if args.sleep > 0:
             time.sleep(args.sleep)

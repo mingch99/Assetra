@@ -64,6 +64,15 @@ export async function buildPortfolioHistory(
     assets.map(async (asset) => {
       const symbol = asset.symbol.trim().toUpperCase();
       try {
+        if (asset.type === "Cash") {
+          const cashPrice =
+            asset.currentPrice > 0 ? asset.currentPrice : asset.avgCost || 1;
+          return {
+            asset,
+            closes: dates.map(() => cashPrice) as (number | null)[],
+          };
+        }
+
         if (asset.type === "Crypto") {
           const coinId = getCoinGeckoIdBySymbol(symbol);
           if (!coinId) {

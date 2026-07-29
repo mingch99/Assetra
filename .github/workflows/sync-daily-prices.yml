@@ -28,3 +28,8 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python scripts/sync_prices.py --period 5d
+
+      - name: Compute MarketFeature metrics
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python scripts/compute_market_features.py

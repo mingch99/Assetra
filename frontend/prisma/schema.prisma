@@ -14,6 +14,18 @@ enum AssetType {
   Stock
   ETF
   Crypto
+  Cash
+}
+
+enum AssetSource {
+  MANUAL
+  SYNCED
+}
+
+enum BrokerConnectionStatus {
+  ACTIVE
+  ERROR
+  DISCONNECTED
 }
 
 enum UserActivityType {
@@ -41,6 +53,7 @@ model User {
   sessions         Session[]
   activities       UserActivity[]
   passwordResetTokens PasswordResetToken[]
+  brokerConnections BrokerConnection[]
 }
 
 model Session {
@@ -78,23 +91,48 @@ model AssetGroup {
   @@index([userId])
 }
 
+model BrokerConnection {
+  id              String                 @id @default(cuid())
+  userId          String
+  user            User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  itemId          String                 @unique
+  accessTokenEnc  String
+  institutionId   String?
+  institutionName String?
+  status          BrokerConnectionStatus @default(ACTIVE)
+  lastSyncedAt    DateTime?
+  lastError       String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  assets          Asset[]
+
+  @@index([userId])
+}
+
 model Asset {
   id           String      @id @default(cuid())
   userId       String
   user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   groupId      String?
   group        AssetGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  connectionId String?
+  connection   BrokerConnection? @relation(fields: [connectionId], references: [id], onDelete: Cascade)
   name         String
   symbol       String
   type         AssetType
+  source       AssetSource @default(MANUAL)
+  externalId   String?
   quantity     Float
   avgCost      Float
   currentPrice Float
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
+  @@unique([userId, externalId])
   @@index([userId])
   @@index([groupId])
+  @@index([connectionId])
+  @@index([userId, source, type])
 }
 
 model UserActivity {
@@ -122,6 +160,27 @@ model DailyMarketPrice {
   source    String   @default("yahoo")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([symbol, date])
+  @@index([symbol, date])
+}
+
+/// Derived daily features from DailyMarketPrice (shared, not per-user).
+model MarketFeature {
+  id            String   @id @default(cuid())
+  symbol        String
+  date          DateTime @db.Date
+  ma20          Float?
+  return7d      Float?
+  return30d     Float?
+  returnYtd     Float?
+  return1y      Float?
+  volatility7d  Float?
+  volatility30d Float?
+  volatilityYtd Float?
+  volatility1y  Float?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@unique([symbol, date])
   @@index([symbol, date])

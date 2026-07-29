@@ -23,6 +23,20 @@ export type PortfolioHistoryResponse = {
   warning?: string;
 };
 
+export type PortfolioRiskMetrics = {
+  asOf: string | null;
+  return7d: number | null;
+  return30d: number | null;
+  returnYtd: number | null;
+  return1y: number | null;
+  volatility7d: number | null;
+  volatility30d: number | null;
+  volatilityYtd: number | null;
+  volatility1y: number | null;
+  coveredWeight: number;
+  missingSymbols: string[];
+};
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
@@ -66,4 +80,11 @@ export function fetchPortfolioHistory(range: string) {
     `/api/portfolio/history?range=${encodeURIComponent(range)}`,
     { method: "GET", cache: "no-store" }
   );
+}
+
+export function fetchPortfolioRisk() {
+  return request<PortfolioRiskMetrics>("/api/portfolio/risk", {
+    method: "GET",
+    cache: "no-store",
+  });
 }

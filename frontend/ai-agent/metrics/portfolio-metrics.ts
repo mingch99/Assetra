@@ -66,6 +66,10 @@ export function computePortfolioMetrics(
   const cryptoValue = assetsWithLivePrices
     .filter((asset) => asset.type === "Crypto")
     .reduce((sum, asset) => sum + getEffectivePrice(asset) * asset.quantity, 0);
+  const syncedCashValue = assetsWithLivePrices
+    .filter((asset) => asset.type === "Cash")
+    .reduce((sum, asset) => sum + getEffectivePrice(asset) * asset.quantity, 0);
+  const totalCash = cashAmount + syncedCashValue;
 
   const basketsValue = baskets.reduce((sum, basket) => sum + basket.marketValue, 0);
 
@@ -126,7 +130,7 @@ export function computePortfolioMetrics(
   });
 
   return {
-    cashAmount,
+    cashAmount: totalCash,
     debtAmount,
     realEstateAmount,
     totalMarketValue,
@@ -141,7 +145,7 @@ export function computePortfolioMetrics(
     stockAllocationPct: pct(stockValue),
     etfAllocationPct: pct(etfValue),
     cryptoAllocationPct: pct(cryptoValue),
-    cashAllocationPct: pct(cashAmount),
+    cashAllocationPct: pct(totalCash),
     realEstateAllocationPct: pct(realEstateAmount),
     liquidAssets: totalMarketValue + cashAmount,
     nonLiquidAssets: realEstateAmount,

@@ -19,7 +19,9 @@ export async function loadPortfolioContextForAiAgent(
   ]);
 
   const quotes = await getQuotesForAssets(
-    assets.map((asset) => ({ symbol: asset.symbol, type: asset.type }))
+    assets
+      .filter((asset) => asset.type !== "Cash")
+      .map((asset) => ({ symbol: asset.symbol, type: asset.type }))
   );
 
   const pricedAssets = assets.map((asset) => {

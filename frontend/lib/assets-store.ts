@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import type { AssetType, NewAsset } from "@/types/asset";
+import {
+  maybePurgeSymbolMarketData,
+  scheduleEnsureSymbolHistory,
+} from "@/lib/market/symbol-lifecycle";
 
 type AssetUpdateInput = {
   name: string;
@@ -11,7 +15,7 @@ type AssetUpdateInput = {
   groupId?: string | null;
 };
 
-function isAssetType(value: unknown): value is AssetType {
+function isManualCreatableType(value: unknown): value is AssetType {
   return value === "Stock" || value === "ETF" || value === "Crypto";
 }
 
@@ -52,7 +56,7 @@ function validateAssetPayload(payload: unknown): {
 
   if (!name) return { ok: false, message: "name is required." };
   if (!symbol) return { ok: false, message: "symbol is required." };
-  if (!isAssetType(type)) {
+  if (!isManualCreatableType(type)) {
     return { ok: false, message: "type must be Stock, ETF, or Crypto." };
   }
   if (!isFiniteNumber(quantity) || quantity <= 0) {
@@ -117,7 +121,7 @@ async function assertOwnedGroup(
 export async function createAsset(input: NewAsset, userId: string) {
   await assertOwnedGroup(userId, input.groupId);
 
-  return prisma.asset.create({
+  const created = await prisma.asset.create({
     data: {
       name: input.name,
       symbol: input.symbol,
@@ -127,9 +131,15 @@ export async function createAsset(input: NewAsset, userId: string) {
       currentPrice: input.currentPrice,
       groupId: input.groupId ?? null,
       userId,
+      source: input.source ?? "MANUAL",
+      externalId: input.externalId ?? null,
+      connectionId: input.connectionId ?? null,
     },
     include: assetInclude,
   });
+
+  scheduleEnsureSymbolHistory(created.symbol, created.type);
+  return created;
 }
 
 export async function updateAsset(
@@ -139,6 +149,10 @@ export async function updateAsset(
 ) {
   const existing = await getAssetById(id, userId);
   if (!existing) return null;
+
+  if (existing.source === "SYNCED") {
+    throw new Error("Synced assets cannot be edited manually.");
+  }
 
   const nextGroupId =
     input.groupId === undefined ? existing.groupId : input.groupId;
@@ -160,9 +174,20 @@ export async function updateAsset(
 }
 
 export async function deleteAsset(id: string, userId: string) {
+  const existing = await getAssetById(id, userId);
+  if (!existing) return false;
+  if (existing.source === "SYNCED") {
+    throw new Error(
+      "Synced assets cannot be deleted individually. Disconnect the broker account instead."
+    );
+  }
+
   const result = await prisma.asset.deleteMany({
-    where: { id, userId },
+    where: { id, userId, source: "MANUAL" },
   });
+  if (result.count > 0) {
+    await maybePurgeSymbolMarketData(existing.symbol);
+  }
   return result.count > 0;
 }
 

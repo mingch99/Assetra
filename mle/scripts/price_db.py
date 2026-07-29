@@ -59,6 +59,8 @@ def require_database_url() -> str:
 def new_id() -> str:
     return f"dmp_{secrets.token_hex(12)}"
 
+# Transform Symbol to Yahoo Finance ticker [Transform]
+
 
 def yahoo_ticker_for(symbol: str, asset_type: str | None = None) -> str:
     symbol = symbol.upper().strip()
@@ -67,11 +69,13 @@ def yahoo_ticker_for(symbol: str, asset_type: str | None = None) -> str:
     return symbol
 
 
+# Yahoo Finance取得所有Symbol的Daily Market Price [Extract]
 def fetch_daily_rows(yahoo_symbol: str, period: str) -> list[dict]:
     history = yf.Ticker(yahoo_symbol).history(period=period, auto_adjust=False)
     if history.empty:
         return []
 
+    # 將index轉換為欄位 [Transform]
     history = history.reset_index()
     date_col = "Date" if "Date" in history.columns else history.columns[0]
     rows: list[dict] = []
@@ -102,6 +106,7 @@ def fetch_daily_rows(yahoo_symbol: str, period: str) -> list[dict]:
     return rows
 
 
+# Upsert DailyMarketPrice [Load]
 def upsert_rows(store_symbol: str, rows: list[dict], database_url: str | None = None) -> int:
     if not rows:
         return 0
@@ -148,6 +153,7 @@ def upsert_rows(store_symbol: str, rows: list[dict], database_url: str | None = 
     return len(payloads)
 
 
+# 從Asset Table取得所有Symbol，目的是要把Symbol餵給Yahoo Finance取得所有Symbol的Daily Market Price [Extract]
 def load_portfolio_symbols(database_url: str | None = None) -> list[tuple[str, str]]:
     """Return distinct (symbol, type) from Asset for Stock / ETF / Crypto."""
     url = database_url or require_database_url()

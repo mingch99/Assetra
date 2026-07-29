@@ -3,6 +3,7 @@ import {
   computeLiquidNonLiquid,
   sumAssetMarketValue,
 } from "@/lib/asset-categories";
+import { computeTotalCash } from "@/lib/broker/cash";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import type { Asset } from "@/types/asset";
 import type { QuoteMap } from "@/lib/api/quotes";
@@ -193,8 +194,11 @@ export default function PortfolioCard({
     cashAmount,
     realEstateAmount,
   });
+  const totalCash = computeTotalCash(cashAmount, pricedAssets);
 
-  const costAssets = pricedAssets.filter((asset) => asset.type !== "Crypto");
+  const costAssets = pricedAssets.filter(
+    (asset) => asset.type !== "Crypto" && asset.type !== "Cash"
+  );
   const totalCost = costAssets.reduce(
     (sum, asset) => sum + asset.avgCost * asset.quantity,
     0
@@ -343,9 +347,9 @@ export default function PortfolioCard({
               },
               {
                 label: t("cash"),
-                percentage: pct(cashAmount),
+                percentage: pct(totalCash),
                 colorClassName: "bg-yellow-700",
-                amount: cashAmount,
+                amount: totalCash,
               },
               {
                 label: t("realEstate"),

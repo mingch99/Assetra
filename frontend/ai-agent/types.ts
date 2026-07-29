@@ -1,4 +1,4 @@
-export type AssetType = "Stock" | "ETF" | "Crypto";
+export type AssetType = "Stock" | "ETF" | "Crypto" | "Cash";
 
 export type AgentMessage = {
   role: "user" | "assistant";

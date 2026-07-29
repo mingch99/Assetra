@@ -55,12 +55,19 @@ export async function PUT(request: Request, context: RouteContext) {
     );
   }
 
-  const updated = await updateAsset(id, parsed.data, user.id);
-  if (!updated) {
-    return NextResponse.json({ error: "Asset not found." }, { status: 404 });
+  try {
+    const updated = await updateAsset(id, parsed.data, user.id);
+    if (!updated) {
+      return NextResponse.json({ error: "Asset not found." }, { status: 404 });
+    }
+    await trackUserActivity(user.id, "ASSET_UPDATE");
+    return NextResponse.json({ data: updated });
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Failed to update asset.";
+    const status = message.includes("Synced") ? 403 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
-  await trackUserActivity(user.id, "ASSET_UPDATE");
-  return NextResponse.json({ data: updated });
 }
 
 export async function DELETE(_request: Request, context: RouteContext) {
@@ -70,13 +77,18 @@ export async function DELETE(_request: Request, context: RouteContext) {
   }
 
   const { id } = await context.params;
-  const deleted = await deleteAsset(id, user.id);
 
-  if (!deleted) {
-    return NextResponse.json({ error: "Asset not found." }, { status: 404 });
+  try {
+    const deleted = await deleteAsset(id, user.id);
+    if (!deleted) {
+      return NextResponse.json({ error: "Asset not found." }, { status: 404 });
+    }
+    await trackUserActivity(user.id, "ASSET_DELETE");
+    return new NextResponse(null, { status: 204 });
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Failed to delete asset.";
+    const status = message.includes("Synced") ? 403 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
-
-  await trackUserActivity(user.id, "ASSET_DELETE");
-
-  return new NextResponse(null, { status: 204 });
 }

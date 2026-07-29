@@ -11,7 +11,9 @@ export async function GET() {
 
   const assets = await listAssets(user.id);
   const quotes = await getQuotesForAssets(
-    assets.map((asset) => ({ symbol: asset.symbol, type: asset.type }))
+    assets
+      .filter((asset) => asset.type !== "Cash")
+      .map((asset) => ({ symbol: asset.symbol, type: asset.type }))
   );
 
   return NextResponse.json({ data: quotes });

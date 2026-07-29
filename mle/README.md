@@ -13,6 +13,10 @@ Asset table (your holdings)
         ↓
 Yahoo Finance (historical)  →  sync_prices.py / GitHub Action  →  DailyMarketPrice
                                                                     ↓
+                                                          compute_market_features.py
+                                                                    ↓
+                                                              MarketFeature
+                                                                    ↓
                                                           (later) Risk API → Dashboard
 
 Finnhub (live quotes)  →  frontend  →  “Refresh Quotes”
@@ -23,7 +27,7 @@ Finnhub (live quotes)  →  frontend  →  “Refresh Quotes”
 | **Yahoo Finance** | Daily OHLCV for risk-engine history |
 | **Finnhub** | Live quotes in the app only |
 | **Scheduler** | `sync_prices.py` locally, or GitHub Action on weekdays |
-| **Database** | `DailyMarketPrice` |
+| **Database** | `DailyMarketPrice` → `MarketFeature` |
 
 ## Repo layout
 
@@ -32,9 +36,10 @@ mle/
 ├── README.md
 ├── requirements.txt
 └── scripts/
-    ├── price_db.py        # shared fetch / upsert / load symbols
-    ├── fetch_price.py     # one symbol (debug / print)
-    └── sync_prices.py     # all portfolio symbols → DB
+    ├── price_db.py                 # shared fetch / upsert / load symbols
+    ├── fetch_price.py              # one symbol (debug / print)
+    ├── sync_prices.py              # all portfolio symbols → DB
+    └── compute_market_features.py  # DailyMarketPrice → MarketFeature
 ```
 
 ## Milestone checklist
@@ -44,7 +49,9 @@ mle/
 3. [x] `DailyMarketPrice` schema
 4. [x] Upsert into DB
 5. [x] Auto sync from `Asset` + GitHub Action cron
-6. [ ] Risk metrics API + UI
+6. [x] `MarketFeature` schema (MA20, 7d/30d return, 30d volatility)
+7. [x] Compute features from `DailyMarketPrice`
+8. [ ] Risk metrics API + UI
 
 ## Local: sync everything in your portfolio
 
@@ -65,6 +72,24 @@ python scripts/sync_prices.py --symbols TSLA,AAPL,NVDA --period 1y
 ```
 
 Needs `DATABASE_URL` in `frontend/.env`.
+
+## Compute market features
+
+After prices exist in `DailyMarketPrice`:
+
+```bash
+python scripts/compute_market_features.py
+python scripts/compute_market_features.py --symbols TSLA,AAPL
+```
+
+| Column | Definition |
+|--------|------------|
+| `ma20` | 20-trading-day SMA of price (`adjClose` else `close`) |
+| `return7d` | `P_t / P_{t-7} - 1` |
+| `return30d` | `P_t / P_{t-30} - 1` |
+| `volatility30d` | Annualized std of daily returns over 30 days (`× √252`) |
+
+Early rows stay `NULL` until the window is full. The GitHub Action runs this after each price sync.
 
 Single-symbol debug:
 
@@ -93,13 +118,18 @@ Until the secret is set, the Action will fail with a missing URL.
 cd frontend && npx prisma studio
 ```
 
-Open **DailyMarketPrice**, or in Neon SQL Editor:
+Open **DailyMarketPrice** / **MarketFeature**, or in Neon SQL Editor:
 
 ```sql
 SELECT symbol, COUNT(*), MIN(date), MAX(date)
 FROM "DailyMarketPrice"
 GROUP BY symbol
 ORDER BY symbol;
+
+SELECT symbol, date, ma20, "return7d", "return30d", "volatility30d"
+FROM "MarketFeature"
+ORDER BY symbol, date DESC
+LIMIT 50;
 ```
 
 ## Design notes

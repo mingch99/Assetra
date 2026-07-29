@@ -20,6 +20,7 @@ type Slice = {
   value: number;
   percentage: number;
   color: string;
+  hideInLegend?: boolean;
 };
 
 function getGoldColorByRatio(ratio: number) {
@@ -53,7 +54,8 @@ function buildDonutSlices(
 function buildTopSlicesWithOthers(
   items: Array<{ label: string; value: number }>,
   limit: number,
-  othersLabel: string
+  othersLabel: string,
+  options?: { hideOthersInLegend?: boolean }
 ): Slice[] {
   const sorted = [...items].sort((a, b) => b.value - a.value);
   const totalValue = sorted.reduce((sum, item) => sum + item.value, 0);
@@ -78,6 +80,7 @@ function buildTopSlicesWithOthers(
       value: othersValue,
       percentage: (othersValue / totalValue) * 100,
       color: "#6b7280",
+      hideInLegend: options?.hideOthersInLegend === true,
     },
   ];
 }
@@ -136,9 +139,9 @@ function DonutCard({
                 stroke="rgba(212, 175, 55, 0.2)"
                 strokeWidth={strokeWidth}
               />
-              {arcSlices.map((slice) => (
+              {arcSlices.map((slice, index) => (
                 <circle
-                  key={slice.label}
+                  key={`${slice.label}-${index}`}
                   cx={center}
                   cy={center}
                   r={radius}
@@ -148,16 +151,18 @@ function DonutCard({
                   strokeDasharray={slice.dashArray}
                   strokeDashoffset={slice.dashOffset}
                   transform={`rotate(-90 ${center} ${center})`}
-                  onMouseEnter={(event) =>
+                  onMouseEnter={(event) => {
+                    if (slice.hideInLegend) return;
                     setHoveredSlice({
                       label: slice.label,
                       value: slice.value,
                       percentage: slice.percentage,
                       x: event.clientX,
                       y: event.clientY,
-                    })
-                  }
-                  onMouseMove={(event) =>
+                    });
+                  }}
+                  onMouseMove={(event) => {
+                    if (slice.hideInLegend) return;
                     setHoveredSlice((previous) =>
                       previous
                         ? {
@@ -172,8 +177,8 @@ function DonutCard({
                             x: event.clientX,
                             y: event.clientY,
                           }
-                    )
-                  }
+                    );
+                  }}
                   onMouseLeave={() => setHoveredSlice(null)}
                 />
               ))}
@@ -186,9 +191,11 @@ function DonutCard({
             </div>
           </div>
           <div className="w-full flex-1 space-y-2">
-            {slices.map((slice) => (
+            {slices
+              .filter((slice) => !slice.hideInLegend)
+              .map((slice, index) => (
               <div
-                key={slice.label}
+                key={`${slice.label}-${index}`}
                 className="flex cursor-default items-center justify-between text-sm"
                 onMouseEnter={(event) =>
                   setHoveredSlice({
@@ -292,8 +299,9 @@ export default function AllocationChart({
     const stocks = allAssets.filter((asset) => asset.type === "Stock");
     return buildTopSlicesWithOthers(
       buildGroupedAllocationItems(stocks, groups),
-      8,
-      othersLabel
+      5,
+      othersLabel,
+      { hideOthersInLegend: true }
     );
   }, [allAssets, groups, othersLabel]);
 
@@ -301,7 +309,7 @@ export default function AllocationChart({
     const etfs = allAssets.filter((asset) => asset.type === "ETF");
     return buildTopSlicesWithOthers(
       buildGroupedAllocationItems(etfs, groups),
-      8,
+      5,
       othersLabel
     );
   }, [allAssets, groups, othersLabel]);
@@ -316,8 +324,8 @@ export default function AllocationChart({
       if (item.label === "Group") return { ...item, label: t("group") };
       return item;
     });
-    return buildDonutSlices(items);
-  }, [allAssets, groups, t]);
+    return buildTopSlicesWithOthers(items, 5, othersLabel);
+  }, [allAssets, groups, othersLabel, t]);
 
   return (
     <section className="mb-8 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-md">

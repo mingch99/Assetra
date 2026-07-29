@@ -4,12 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import PortfolioCard from "@/components/PortfolioCard";
 import AllocationChart from "@/components/AllocationChart";
+import ReturnVolatilityCard from "@/components/ReturnVolatilityCard";
 import AssetTable from "@/components/AssetTable";
 import UserMenu from "@/components/UserMenu";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { AgentChatWidget } from "@/ai-agent";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import type { Asset, AssetGroup, NewAsset } from "@/types/asset";
+import { computeTotalCash } from "@/lib/broker/cash";
 import {
   createAsset,
   deleteAsset,
@@ -17,8 +19,10 @@ import {
   updateAsset,
 } from "@/lib/api/assets";
 import {
+  fetchPortfolioRisk,
   fetchPortfolioState,
   savePortfolioState,
+  type PortfolioRiskMetrics,
 } from "@/lib/api/portfolio";
 import {
   createGroup,
@@ -38,6 +42,15 @@ function applyQuotesToAssets(assets: Asset[], quotes: QuoteMap): Asset[] {
   });
 }
 
+function normalizeAsset(asset: Asset): Asset {
+  return {
+    ...asset,
+    source: asset.source ?? "MANUAL",
+    externalId: asset.externalId ?? null,
+    connectionId: asset.connectionId ?? null,
+  };
+}
+
 export default function DashboardPage() {
   const { t } = useI18n();
   const router = useRouter();
@@ -55,6 +68,10 @@ export default function DashboardPage() {
   const [quotes, setQuotes] = useState<QuoteMap>({});
   const [isRefreshingQuotes, setIsRefreshingQuotes] = useState(false);
   const [quotesUpdatedAt, setQuotesUpdatedAt] = useState<Date | null>(null);
+  const [riskMetrics, setRiskMetrics] = useState<PortfolioRiskMetrics | null>(
+    null
+  );
+  const [isRiskLoading, setIsRiskLoading] = useState(false);
 
   useEffect(() => {
     async function loadSession() {
@@ -71,6 +88,18 @@ export default function DashboardPage() {
     void loadSession();
   }, [router]);
 
+  const refreshRiskMetrics = useCallback(async () => {
+    setIsRiskLoading(true);
+    try {
+      const data = await fetchPortfolioRisk();
+      setRiskMetrics(data);
+    } catch {
+      // Keep last known metrics; card shows empty if none.
+    } finally {
+      setIsRiskLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (isAuthLoading || !currentUser) return;
 
@@ -78,20 +107,22 @@ export default function DashboardPage() {
       try {
         setIsLoading(true);
         setError("");
-        const [assetsData, portfolioData, groupsData, quotesData] =
+        const [assetsData, portfolioData, groupsData, quotesData, riskData] =
           await Promise.all([
             fetchAssets(),
             fetchPortfolioState(),
             fetchGroups().catch(() => [] as AssetGroup[]),
             fetchQuotes().catch(() => ({} as QuoteMap)),
+            fetchPortfolioRisk().catch(() => null),
           ]);
-        setAssets(assetsData);
+        setAssets(assetsData.map(normalizeAsset));
         setGroups(groupsData);
         setCashAmount(portfolioData.cashAmount);
         setDebtAmount(portfolioData.debtAmount);
         setRealEstateAmount(portfolioData.realEstateAmount ?? 0);
         setQuotes(quotesData);
         setQuotesUpdatedAt(new Date());
+        setRiskMetrics(riskData);
         setIsPortfolioLoaded(true);
       } catch (err) {
         const message =
@@ -140,6 +171,32 @@ export default function DashboardPage() {
     () => applyQuotesToAssets(assets, quotes),
     [assets, quotes]
   );
+  const totalCash = useMemo(
+    () => computeTotalCash(cashAmount, assetsWithPrices),
+    [assetsWithPrices, cashAmount]
+  );
+
+  const reloadHoldings = useCallback(async () => {
+    const [assetsData, quotesData] = await Promise.all([
+      fetchAssets(),
+      fetchQuotes().catch(() => ({} as QuoteMap)),
+    ]);
+    setAssets(assetsData.map(normalizeAsset));
+    setQuotes(quotesData);
+    setQuotesUpdatedAt(new Date());
+    await refreshRiskMetrics();
+  }, [refreshRiskMetrics]);
+
+  useEffect(() => {
+    if (!isPortfolioLoaded) return;
+
+    // New assets may still be backfilling 1y history in the background.
+    const timer = window.setTimeout(() => {
+      void refreshRiskMetrics();
+    }, 8000);
+
+    return () => window.clearTimeout(timer);
+  }, [assets, isPortfolioLoaded, refreshRiskMetrics]);
 
   useEffect(() => {
     if (!isPortfolioLoaded || isAuthLoading || !currentUser) return;
@@ -176,8 +233,12 @@ export default function DashboardPage() {
   async function handleAddAsset(asset: NewAsset) {
     try {
       const createdAsset = await createAsset(asset);
-      setAssets((prevAssets) => [...prevAssets, createdAsset]);
+      setAssets((prevAssets) => [
+        ...prevAssets,
+        normalizeAsset(createdAsset),
+      ]);
       setError("");
+      void refreshRiskMetrics();
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to create asset.";
@@ -194,6 +255,7 @@ export default function DashboardPage() {
     try {
       await deleteAsset(assetId);
       setError("");
+      void refreshRiskMetrics();
     } catch (err) {
       if (deletedAsset) {
         setAssets((prevAssets) => [...prevAssets, deletedAsset]);
@@ -227,7 +289,7 @@ export default function DashboardPage() {
       const savedAsset = await updateAsset(updatedAsset.id, payload);
       setAssets((prevAssets) =>
         prevAssets.map((asset) =>
-          asset.id === savedAsset.id ? savedAsset : asset
+          asset.id === savedAsset.id ? normalizeAsset(savedAsset) : asset
         )
       );
       setError("");
@@ -298,23 +360,6 @@ export default function DashboardPage() {
             {t("dashboardTitle")}
           </h1>
           <div className="flex items-center gap-3">
-            <div className="flex flex-col items-end">
-              <button
-                type="button"
-                onClick={() => refreshQuotes()}
-                disabled={isRefreshingQuotes}
-                className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[var(--surface-2)] disabled:opacity-60"
-              >
-                {isRefreshingQuotes ? t("refreshingQuotes") : t("refreshQuotes")}
-              </button>
-              {quotesUpdatedAt && (
-                <span className="mt-1 text-xs text-[var(--muted)]">
-                  {t("quotesUpdatedAt", {
-                    time: quotesUpdatedAt.toLocaleTimeString(),
-                  })}
-                </span>
-              )}
-            </div>
             <LanguageSwitcher />
             <UserMenu
               user={currentUser}
@@ -348,10 +393,15 @@ export default function DashboardPage() {
           onRealEstateAmountChange={setRealEstateAmount}
         />
 
+        <ReturnVolatilityCard
+          metrics={riskMetrics}
+          isLoading={isRiskLoading || isLoading}
+        />
+
         <AllocationChart
           allAssets={assetsWithPrices}
           groups={groups}
-          cashAmount={cashAmount}
+          cashAmount={totalCash}
           realEstateAmount={realEstateAmount}
         />
 
@@ -359,12 +409,17 @@ export default function DashboardPage() {
           assets={assetsWithPrices}
           groups={groups}
           quotes={quotes}
+          importDisabled={isLoading}
+          onImported={reloadHoldings}
           onDeleteAsset={handleDeleteAsset}
           onUpdateAsset={handleUpdateAsset}
           onAddAsset={handleAddAsset}
           onCreateGroup={handleCreateGroup}
           onRenameGroup={handleRenameGroup}
           onDeleteGroup={handleDeleteGroup}
+          onRefreshQuotes={() => refreshQuotes()}
+          isRefreshingQuotes={isRefreshingQuotes}
+          quotesUpdatedAt={quotesUpdatedAt}
         />
       </main>
 

@@ -10,6 +10,10 @@ import { useI18n } from "@/lib/i18n/LanguageProvider";
 type AssetFormProps = {
   onAddAsset: (asset: NewAsset) => Promise<void>;
   className?: string;
+  /** When false, only the form panel is rendered (parent controls open state). */
+  showTrigger?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
 type FormSubmitEvent = Parameters<
@@ -19,15 +23,28 @@ type FormSubmitEvent = Parameters<
 export default function AssetForm({
   onAddAsset,
   className = "",
+  showTrigger = true,
+  open,
+  onOpenChange,
 }: AssetFormProps) {
   const { t } = useI18n();
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isOpen = open ?? internalOpen;
+
+  function setIsOpen(next: boolean) {
+    if (open === undefined) {
+      setInternalOpen(next);
+    }
+    onOpenChange?.(next);
+  }
+
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchResults, setSearchResults] = useState<SymbolSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -43,6 +60,21 @@ export default function AssetForm({
       searchInputRef.current?.focus();
     }
   }, [isOpen]);
+
+  // Click outside the panel to close (when using built-in trigger).
+  useEffect(() => {
+    if (!isOpen || !showTrigger) return;
+
+    function handleOutsideClick(event: MouseEvent) {
+      const target = event.target as Node;
+      if (panelRef.current && !panelRef.current.contains(target)) {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [isOpen, showTrigger]);
 
   // 依關鍵字向 API 查詢對應標的（debounce 300ms）。
   useEffect(() => {
@@ -157,22 +189,45 @@ export default function AssetForm({
   }
 
   return (
-    <div className={`relative ${className}`}>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="rounded-lg bg-[var(--accent)] px-5 py-3 font-semibold text-black hover:bg-[var(--accent-hover)] transition"
-      >
-        {isOpen ? t("closeForm") : t("addNewAsset")}
-      </button>
+    <div ref={panelRef} className={`relative ${className}`}>
+      {showTrigger && (
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className="rounded-lg bg-[var(--accent)] px-5 py-3 font-semibold text-black transition hover:bg-[var(--accent-hover)]"
+        >
+          {isOpen ? t("closeForm") : t("addNewAsset")}
+        </button>
+      )}
 
       {isOpen && (
-        <div className="absolute right-0 mt-3 w-[min(56rem,calc(100vw-3rem))] rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-md p-6 z-20">
-          <h2 className="text-2xl font-semibold mb-4 text-[var(--accent)]">
-            {t("addNewAsset")}
-          </h2>
+        <div
+          className={`${
+            showTrigger ? "absolute right-0 mt-3" : ""
+          } z-20 w-[min(56rem,calc(100vw-3rem))] rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-md`}
+        >
+          {!showTrigger && (
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="text-2xl font-semibold text-[var(--accent)]">
+                {t("addNewAsset")}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--muted)] transition hover:text-[var(--foreground)]"
+              >
+                {t("close")}
+              </button>
+            </div>
+          )}
+          {showTrigger && (
+            <h2 className="mb-4 text-2xl font-semibold text-[var(--accent)]">
+              {t("addNewAsset")}
+            </h2>
+          )}
 
           <form
-            className="grid grid-cols-1 md:grid-cols-3 gap-4"
+            className="grid grid-cols-1 gap-4 md:grid-cols-3"
             onSubmit={handleSubmit}
           >
             <div className="relative">

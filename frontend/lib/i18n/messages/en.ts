@@ -60,6 +60,32 @@ export const en = {
   etfs: "ETFs",
   crypto: "Crypto",
 
+  // Broker import
+  brokerImportTitle: "Import from broker / bank",
+  brokerImportSubtitle:
+    "Connect with Plaid to one-click import US stocks, ETFs, crypto, and account cash.",
+  brokerImportCta: "Import from Bank",
+  brokerImportWorking: "Connecting...",
+  brokerImportSuccess: "Imported {count} holdings from {name}.",
+  brokerImportFailed: "Failed to import assets.",
+  brokerAccount: "Broker account",
+  brokerSyncNow: "Sync now",
+  brokerSyncSuccess: "Synced {count} holdings.",
+  brokerSyncFailed: "Sync failed.",
+  brokerDisconnect: "Disconnect",
+  brokerDisconnectConfirm:
+    "Disconnect this account and remove its synced holdings?",
+  brokerDisconnectSuccess: "Account disconnected.",
+  brokerDisconnectFailed: "Failed to disconnect account.",
+  brokerLastSynced: "Last synced {time}",
+  brokerNeverSynced: "Not synced yet",
+  manualCash: "Manual cash",
+  totalCashBreakdown: "Total cash ${total} (manual ${manual} + account ${synced})",
+  syncedBadge: "Synced",
+  syncedReadOnly: "Synced",
+  syncedAssetReadOnly:
+    "Synced holdings are read-only. Disconnect the broker to remove them.",
+
   // Allocation
   allocationTitle: "Allocation",
   allAssets: "All Assets",
@@ -67,6 +93,22 @@ export const en = {
   others: "Others",
   altcoins: "Altcoins",
   usd: "USD",
+
+  // Return & volatility
+  returnVolTitle: "Return & Volatility",
+  returnVol7d: "7-Day Return",
+  returnVol30d: "30-Day Return",
+  returnVolYtd: "YTD Return",
+  returnVol1y: "1-Year Return",
+  returnVolVolatility7d: "7-Day Volatility",
+  returnVolVolatility30d: "30-Day Volatility",
+  returnVolVolatilityYtd: "YTD Volatility",
+  returnVolVolatility1y: "1-Year Volatility",
+  returnVolAsOf: "As of {date}",
+  returnVolEmpty:
+    "Risk metrics are not ready yet. They appear after market history is synced.",
+  returnVolLoading: "Loading risk metrics…",
+  returnVolCoverage: "Based on {pct}% of holdings with available history.",
 
   // Groups
   manageGroups: "Manage Groups",
@@ -91,7 +133,11 @@ export const en = {
   // Asset table / form
   assetTableTitle: "Asset Table",
   noAssetsMatchFilter: "No assets match this filter.",
+  assetTableShowing: "Showing {shown} of {total}",
+  assetTablePageSize: "Rows",
+  assetTablePageSizeAll: "All",
   addNewAsset: "Add New Asset",
+  addAssetMenu: "Add holdings",
   closeForm: "Close Form",
   instrument: "Instrument",
   searchInstruments: "Search stocks, ETFs or crypto",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import AssetForm from "@/components/AssetForm";
+import AddAssetMenu from "@/components/AddAssetMenu";
 import GroupManager from "@/components/GroupManager";
 import { useI18n } from "@/lib/i18n/LanguageProvider";
 import type { EnMessages } from "@/lib/i18n/messages/en";
@@ -12,12 +12,17 @@ type AssetTableProps = {
   assets: Asset[];
   groups: AssetGroup[];
   quotes: QuoteMap;
+  importDisabled?: boolean;
+  onImported?: () => Promise<void> | void;
   onDeleteAsset: (assetId: string) => Promise<void>;
   onUpdateAsset: (asset: Asset) => Promise<void>;
   onAddAsset: (asset: NewAsset) => Promise<void>;
   onCreateGroup: (name: string) => Promise<void>;
   onRenameGroup: (groupId: string, name: string) => Promise<void>;
   onDeleteGroup: (groupId: string) => Promise<void>;
+  onRefreshQuotes?: () => void;
+  isRefreshingQuotes?: boolean;
+  quotesUpdatedAt?: Date | null;
 };
 
 type SortDirection = "asc" | "desc";
@@ -39,7 +44,7 @@ type EditFormState = {
   avgCost: string;
 };
 
-const filterOptions: AssetTab[] = ["All", "Stock", "ETF", "Crypto"];
+const filterOptions: AssetTab[] = ["All", "Stock", "ETF", "Crypto", "Cash"];
 
 function getCostBasis(asset: Asset) {
   if (asset.type === "Crypto") return 0;
@@ -131,6 +136,8 @@ function typeFilterLabel(
       return t("etf");
     case "Crypto":
       return t("crypto");
+    case "Cash":
+      return t("cash");
   }
 }
 
@@ -138,12 +145,17 @@ export default function AssetTable({
   assets,
   groups,
   quotes,
+  importDisabled = false,
+  onImported,
   onDeleteAsset,
   onUpdateAsset,
   onAddAsset,
   onCreateGroup,
   onRenameGroup,
   onDeleteGroup,
+  onRefreshQuotes,
+  isRefreshingQuotes = false,
+  quotesUpdatedAt = null,
 }: AssetTableProps) {
   const { t } = useI18n();
   const ungroupedLabel = t("ungrouped");
@@ -151,6 +163,7 @@ export default function AssetTable({
   const [groupFilter, setGroupFilter] = useState<string>("all");
   const [sortKey, setSortKey] = useState<SortKey>("marketValue");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [pageSize, setPageSize] = useState<number | "all">(5);
   const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
   const [openMenuAssetId, setOpenMenuAssetId] = useState<string | null>(null);
   const [editError, setEditError] = useState("");
@@ -223,6 +236,11 @@ export default function AssetTable({
     ungroupedLabel,
   ]);
 
+  const visibleAssets = useMemo(() => {
+    if (pageSize === "all") return sortedAssets;
+    return sortedAssets.slice(0, pageSize);
+  }, [pageSize, sortedAssets]);
+
   useEffect(() => {
     function handleOutsideClick(event: MouseEvent) {
       const target = event.target as HTMLElement;
@@ -244,6 +262,7 @@ export default function AssetTable({
   }
 
   function startEditing(asset: Asset) {
+    if (asset.source === "SYNCED") return;
     setEditingAssetId(asset.id);
     setOpenMenuAssetId(null);
     setEditError("");
@@ -288,6 +307,10 @@ export default function AssetTable({
   }
 
   async function changeGroup(asset: Asset, groupId: string) {
+    if (asset.source === "SYNCED") {
+      setEditError(t("syncedAssetReadOnly"));
+      return;
+    }
     const nextGroupId = groupId === "" ? null : groupId;
     const nextGroup =
       nextGroupId === null
@@ -309,6 +332,11 @@ export default function AssetTable({
   }
 
   async function confirmDelete(asset: Asset) {
+    if (asset.source === "SYNCED") {
+      setEditError(t("syncedAssetReadOnly"));
+      setOpenMenuAssetId(null);
+      return;
+    }
     setOpenMenuAssetId(null);
     const confirmed = window.confirm(
       t("deleteAssetConfirm", { symbol: asset.symbol, name: asset.name })
@@ -343,9 +371,32 @@ export default function AssetTable({
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-md">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-2xl font-semibold text-[var(--accent)]">
-          {t("assetTableTitle")}
-        </h2>
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="text-2xl font-semibold text-[var(--accent)]">
+            {t("assetTableTitle")}
+          </h2>
+          {onRefreshQuotes && (
+            <div className="flex flex-col items-start sm:items-end">
+              <button
+                type="button"
+                onClick={onRefreshQuotes}
+                disabled={isRefreshingQuotes}
+                className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[var(--surface)] disabled:opacity-60"
+              >
+                {isRefreshingQuotes
+                  ? t("refreshingQuotes")
+                  : t("refreshQuotes")}
+              </button>
+              {quotesUpdatedAt && (
+                <span className="mt-1 text-xs text-[var(--muted)]">
+                  {t("quotesUpdatedAt", {
+                    time: quotesUpdatedAt.toLocaleTimeString(),
+                  })}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-3">
           <label className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--muted)]">
             <span>{t("type")}</span>
@@ -387,7 +438,11 @@ export default function AssetTable({
             onRenameGroup={onRenameGroup}
             onDeleteGroup={onDeleteGroup}
           />
-          <AssetForm onAddAsset={onAddAsset} />
+          <AddAssetMenu
+            onAddAsset={onAddAsset}
+            importDisabled={importDisabled}
+            onImported={onImported}
+          />
         </div>
       </div>
 
@@ -437,7 +492,7 @@ export default function AssetTable({
             </tr>
           </thead>
           <tbody>
-            {sortedAssets.map((asset) => {
+            {visibleAssets.map((asset) => {
               const isEditing = editingAssetId === asset.id;
               const costBasis = getCostBasis(asset);
               const marketValue = getMarketValue(asset);
@@ -454,6 +509,11 @@ export default function AssetTable({
                     <div className="text-xs text-[var(--muted)]">
                       {asset.name}
                     </div>
+                    {asset.source === "SYNCED" && (
+                      <span className="mt-1 inline-block rounded-full border border-[var(--accent)]/40 bg-[var(--accent)]/10 px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
+                        {t("syncedBadge")}
+                      </span>
+                    )}
                     {isEditing && (
                       <div className="mt-2 flex gap-2">
                         <button
@@ -474,6 +534,11 @@ export default function AssetTable({
                     )}
                   </td>
                   <td className="py-4">
+                    {asset.source === "SYNCED" ? (
+                      <span className="text-sm text-[var(--muted)]">
+                        {getGroupLabel(asset, groups, ungroupedLabel)}
+                      </span>
+                    ) : (
                     <select
                       className="max-w-[10rem] rounded border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 text-sm text-[var(--foreground)]"
                       value={asset.groupId ?? ""}
@@ -486,6 +551,7 @@ export default function AssetTable({
                         </option>
                       ))}
                     </select>
+                    )}
                   </td>
                   <td className="py-4">
                     {isEditing ? (
@@ -593,6 +659,11 @@ export default function AssetTable({
                     )}
                   </td>
                   <td className="py-4 text-right">
+                    {asset.source === "SYNCED" ? (
+                      <span className="text-xs text-[var(--muted)] opacity-60">
+                        {t("syncedReadOnly")}
+                      </span>
+                    ) : (
                     <div className="relative" data-asset-menu>
                       <button
                         type="button"
@@ -624,6 +695,7 @@ export default function AssetTable({
                         </div>
                       )}
                     </div>
+                    )}
                   </td>
                 </tr>
               );
@@ -631,6 +703,41 @@ export default function AssetTable({
           </tbody>
         </table>
       </div>
+
+      {sortedAssets.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--muted)]">
+          <p>
+            {t("assetTableShowing", {
+              shown: String(visibleAssets.length),
+              total: String(sortedAssets.length),
+            })}
+          </p>
+          <label className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2">
+            <span>{t("assetTablePageSize")}</span>
+            <select
+              className="rounded bg-transparent text-[var(--foreground)] outline-none"
+              value={pageSize === "all" ? "all" : String(pageSize)}
+              onChange={(e) => {
+                const value = e.target.value;
+                setPageSize(value === "all" ? "all" : Number(value));
+              }}
+            >
+              <option value="5" className="text-black">
+                5
+              </option>
+              <option value="10" className="text-black">
+                10
+              </option>
+              <option value="25" className="text-black">
+                25
+              </option>
+              <option value="all" className="text-black">
+                {t("assetTablePageSizeAll")}
+              </option>
+            </select>
+          </label>
+        </div>
+      )}
 
       {editError && <p className="mt-3 text-sm text-red-400">{editError}</p>}
     </div>
