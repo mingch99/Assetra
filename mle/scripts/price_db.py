@@ -1,31 +1,31 @@
-"""Shared helpers for Yahoo → DailyMarketPrice ingestion."""
+"""
+Shared helpers for Yahoo → DailyMarketPrice ingestion.
+ETL pipeline: Extract, Transform, Load.
 
+從資料庫找出使用者持有的資產代號，轉換成 Yahoo Finance 能理解的 ticker，抓取歷史價格，清理格式，最後寫回 PostgreSQL。
+Asset Table
+   ↓
+load_portfolio_symbols()
+   ↓
+yahoo_ticker_for()
+   ↓
+fetch_daily_rows()
+   ↓
+upsert_rows()
+   ↓
+DailyMarketPrice Table
+"""
 from __future__ import annotations
-
 import os
 import secrets
-from datetime import datetime, timezone
-from pathlib import Path
-
 import psycopg
+import pandas as pd
 import yfinance as yf
-
-# Asset.symbol (app) → Yahoo Finance ticker when they differ
-CRYPTO_YAHOO_TICKERS: dict[str, str] = {
-    "BTC": "BTC-USD",
-    "ETH": "ETH-USD",
-    "SOL": "SOL-USD",
-    "XRP": "XRP-USD",
-    "ADA": "ADA-USD",
-    "DOGE": "DOGE-USD",
-    "AVAX": "AVAX-USD",
-    "SUI": "SUI-USD",
-    "CRO": "CRO-USD",
-    "USDT": "USDT-USD",
-    "USDC": "USDC-USD",
-}
+from pathlib import Path
+from datetime import datetime, timezone
 
 
+# Load environment variables from .env files
 def load_dotenv_files() -> None:
     root = Path(__file__).resolve().parents[2]
     candidates = [
@@ -46,6 +46,7 @@ def load_dotenv_files() -> None:
                 os.environ[key] = value
 
 
+# Require DATABASE_URL environment variable
 def require_database_url() -> str:
     load_dotenv_files()
     url = (os.environ.get("DATABASE_URL") or "").strip()
@@ -56,35 +57,42 @@ def require_database_url() -> str:
     return url
 
 
+# Generate a new unique ID for DailyMarketPrice
 def new_id() -> str:
-    return f"dmp_{secrets.token_hex(12)}"
-
-# Transform Symbol to Yahoo Finance ticker [Transform]
+    return f"dmp_{secrets.token_hex(12)}"  # dmp mean DailyMarketPrice
 
 
+# Transform Asset.symbol → Yahoo Finance ticker.
+# Crypto symbols from CoinGecko are stored as BTC/ETH/...; Yahoo needs BTC-USD.
+# asset_type comes from Asset.type on portfolio sync — required for the -USD suffix.
 def yahoo_ticker_for(symbol: str, asset_type: str | None = None) -> str:
     symbol = symbol.upper().strip()
-    if asset_type == "Crypto" or symbol in CRYPTO_YAHOO_TICKERS:
-        return CRYPTO_YAHOO_TICKERS.get(symbol, f"{symbol}-USD")
+    if asset_type == "Crypto":
+        return f"{symbol}-USD"
     return symbol
 
 
-# Yahoo Finance取得所有Symbol的Daily Market Price [Extract]
+# Fetch daily rows from Yahoo Finance [Extract]
 def fetch_daily_rows(yahoo_symbol: str, period: str) -> list[dict]:
     history = yf.Ticker(yahoo_symbol).history(period=period, auto_adjust=False)
     if history.empty:
         return []
 
-    # 將index轉換為欄位 [Transform]
+    # Transform index to columns [Transform]
+    # reset_index() 將 index 轉換為欄位 (Yahoo 的 index 欄位是 date)
     history = history.reset_index()
     date_col = "Date" if "Date" in history.columns else history.columns[0]
     rows: list[dict] = []
 
+    # _ 是 index，row 是 row data
+    # iterrows() 是 pandas 的函數，用於遍歷 DataFrame 的每一行
     for _, row in history.iterrows():
         date_value = row[date_col]
         date_str = (
-            date_value.date().isoformat()
+            date_value.date().isoformat()  # isoformat() 將日期轉換為 ISO 格式 (YYYY-MM-DD)
+            # hasattr() 檢查 date_value 是否有 date 屬性
             if hasattr(date_value, "date")
+            # str(date_value)[:10] 將日期轉換為字串，並取前10個字符 (YYYY-MM-DD)
             else str(date_value)[:10]
         )
         close = float(row["Close"])
@@ -99,8 +107,8 @@ def fetch_daily_rows(yahoo_symbol: str, period: str) -> list[dict]:
                 "high": float(row["High"]),
                 "low": float(row["Low"]),
                 "close": close,
-                "adjClose": float(adj) if adj == adj else None,
-                "volume": int(volume) if volume == volume else 0,
+                "adjClose": float(adj) if pd.notna(adj) else None,
+                "volume": int(volume) if pd.notna(volume) else 0,
             }
         )
     return rows
@@ -146,8 +154,10 @@ def upsert_rows(store_symbol: str, rows: list[dict], database_url: str | None = 
         }
         for row in rows
     ]
-    with psycopg.connect(url) as conn:
-        with conn.cursor() as cur:
+    # psycopg.connect() 連接 PostgreSQL 資料庫
+    with psycopg.connect(url) as conn:  # with 語句用於確保結束後會自動關閉 connection)
+        with conn.cursor() as cur:  # cursor 用於執行 SQL 語句
+            # executemany() 用於執行多個 SQL 語句 (對每一個 payload 執行相同 SQL)
             cur.executemany(sql, payloads)
         conn.commit()
     return len(payloads)
@@ -167,4 +177,6 @@ def load_portfolio_symbols(database_url: str | None = None) -> list[tuple[str, s
                 ORDER BY "symbol"
                 """
             )
+            # row: (symbol, type)
+            # fetchall() 用於獲取所有查詢結果
             return [(row[0].upper().strip(), row[1]) for row in cur.fetchall()]

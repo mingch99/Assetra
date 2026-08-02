@@ -35,22 +35,24 @@ Finnhub (live quotes)  →  frontend  →  “Refresh Quotes”
 mle/
 ├── README.md
 ├── requirements.txt
-└── scripts/
-    ├── price_db.py                 # shared fetch / upsert / load symbols
-    ├── fetch_price.py              # one symbol (debug / print)
-    ├── sync_prices.py              # all portfolio symbols → DB
-    └── compute_market_features.py  # DailyMarketPrice → MarketFeature
+├── requirements-dev.txt            # pytest (+ runtime deps)
+├── pytest.ini
+├── scripts/
+│   ├── price_db.py                 # shared fetch / upsert / load symbols
+│   ├── sync_prices.py              # portfolio / explicit symbols → DB
+│   └── compute_market_features.py  # DailyMarketPrice → MarketFeature
+└── tests/                          # unit tests (no live Yahoo / DB)
 ```
 
 ## Milestone checklist
 
 1. [x] Architecture V1
-2. [x] `fetch_price.py` — Yahoo + print / `--write`
+2. [x] Yahoo fetch + upsert (`price_db` / `sync_prices`)
 3. [x] `DailyMarketPrice` schema
-4. [x] Upsert into DB
-5. [x] Auto sync from `Asset` + GitHub Action cron
-6. [x] `MarketFeature` schema (MA20, 7d/30d return, 30d volatility)
-7. [x] Compute features from `DailyMarketPrice`
+4. [x] Auto sync from `Asset` + GitHub Action cron
+5. [x] `MarketFeature` schema (MA20, 7d/30d return, 30d volatility)
+6. [x] Compute features from `DailyMarketPrice`
+7. [x] Unit tests + CI (`mle-ci.yml`)
 8. [ ] Risk metrics API + UI
 
 ## Local: sync everything in your portfolio
@@ -91,11 +93,19 @@ python scripts/compute_market_features.py --symbols TSLA,AAPL
 
 Early rows stay `NULL` until the window is full. The GitHub Action runs this after each price sync.
 
-Single-symbol debug:
+## Tests & CI
+
+Unit tests cover ticker mapping, Yahoo row parsing (mocked), feature math, and sync target resolution. They **do not** hit Yahoo or Postgres.
 
 ```bash
-python scripts/fetch_price.py --symbol TSLA --period 1mo --write
+cd mle
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+pytest
 ```
+
+CI workflow: [`.github/workflows/mle-ci.yml`](../.github/workflows/mle-ci.yml) — runs `pytest` on push/PR when `mle/**` changes.
 
 ## Automatic schedule (GitHub Actions)
 
@@ -134,9 +144,8 @@ LIMIT 50;
 
 ## Design notes
 
-- Stored `symbol` matches your `Asset.symbol` (e.g. `BTC`); Yahoo may use `BTC-USD` only for the request.
+- Stored `symbol` matches your `Asset.symbol` (e.g. `BTC`); Yahoo may use `BTC-USD` only for the request (`yahoo_ticker_for` when `type` is `Crypto`).
 - Re-runs upsert on `(symbol, date)` — safe to run every day.
-- Crypto Yahoo map lives in `scripts/price_db.py` (`CRYPTO_YAHOO_TICKERS`).
 
 ## Out of scope (later)
 

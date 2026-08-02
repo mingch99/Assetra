@@ -139,7 +139,9 @@ python scripts/sync_prices.py --period 1mo
 python scripts/compute_market_features.py
 ```
 
-**Automated:** [`.github/workflows/sync-daily-prices.yml`](.github/workflows/sync-daily-prices.yml) runs on weekdays after the US close. Set repository secret `DATABASE_URL` once.
+**Automated sync:** [`.github/workflows/sync-daily-prices.yml`](.github/workflows/sync-daily-prices.yml) runs on weekdays after the US close. Set repository secret `DATABASE_URL` once.
+
+**CI:** [`.github/workflows/mle-ci.yml`](.github/workflows/mle-ci.yml) runs `pytest` on `mle/**` changes (no live Yahoo / DB).
 
 Feature columns include MA20, multi-horizon returns, and annualized volatility windows. Full details: [`mle/README.md`](mle/README.md).
 
