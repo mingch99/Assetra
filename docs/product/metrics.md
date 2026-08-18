@@ -45,7 +45,7 @@ Track distribution across user cohorts — not a single score:
 |------|----------------|
 | **Knowledge** | Lessons completed, quiz scores |
 | **Habits** | Check-in rate, streak, review frequency |
-| **Portfolio Health** | Engine health score when available |
+| **Portfolio Health** | Atlas health score when available |
 
 Example segment: high Knowledge + low Portfolio Health → prioritize mission + sim content.
 

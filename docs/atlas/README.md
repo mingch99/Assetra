@@ -1,10 +1,10 @@
-# Assetra Engine
+# Atlas
 
-Analytics backend for the [Assetra](../../README.md) product.
+Intelligence layer for the [Assetra](../../README.md) product.
 
-The Engine powers portfolio tracking, market data, risk analytics, and AI-assisted explanations. Users interact with **Financial City** in the experience layer; **Assetra Engine** runs underneath and turns holdings into insights, missions, and personalized guidance.
+Atlas powers portfolio tracking, market data, risk analytics, and AI-assisted explanations. Users interact with **Lumitopia** in the experience layer; **Atlas** runs underneath and turns holdings into insights, missions, and personalized guidance.
 
-**Live demo (Engine dashboard):** [assetra-eight.vercel.app](https://assetra-eight.vercel.app)
+**Live demo (Atlas dashboard):** [assetra-eight.vercel.app](https://assetra-eight.vercel.app)
 
 Naming: [Product glossary](../product/glossary.md) · [System design](../architecture/system-design.md)
 
@@ -24,7 +24,7 @@ Naming: [Product glossary](../product/glossary.md) · [System design](../archite
 | **AI Portfolio Advisor** | Ready | Streaming chat with portfolio context (OpenAI) |
 | **Auth & account** | Ready | Email/password, sessions, password reset (Resend) |
 | **i18n** | Ready | English / 中文 UI |
-| **Portfolio Health Score** | Planned | Composite score → city missions |
+| **Portfolio Health Score** | Planned | Composite score → Lumitopia missions |
 | **What-if simulator** | Planned | Rebalance preview tied to risk metrics |
 
 ---
@@ -65,7 +65,7 @@ Assetra/
 
 ```text
                     ┌─────────────────────────────┐
-                    │      Financial City (WIP)   │
+                    │       Lumitopia (WIP)       │
                     │  Lessons · Missions · XP    │
                     └──────────────┬──────────────┘
                                    │
@@ -176,12 +176,12 @@ cd frontend && npx prisma studio
 
 ---
 
-## Engine roadmap
+## Atlas roadmap
 
 - [x] Auth, holdings CRUD, live quotes, groups, EN/ZH
 - [x] Daily price ETL + MarketFeature + portfolio risk card
 - [x] Plaid broker import + AI advisor
 - [x] MLE unit tests + CI
-- [ ] Portfolio Health Score API (feeds city missions)
+- [ ] Portfolio Health Score API (feeds Lumitopia missions)
 - [ ] What-if rebalance simulator
 - [ ] Deeper risk metrics (correlation, VaR)

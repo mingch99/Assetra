@@ -1,6 +1,6 @@
 # Glossary
 
-Naming conventions for Assetra product, Financial City, and Assetra Engine.
+Naming conventions for Assetra, Lumitopia, and Atlas.
 
 ---
 
@@ -8,20 +8,22 @@ Naming conventions for Assetra product, Financial City, and Assetra Engine.
 
 | Term | Definition |
 |------|------------|
-| **Assetra** | The product — umbrella brand for Financial City + Assetra Engine |
-| **Financial City** | Experience layer: city UI, learning, missions, gamification |
-| **Assetra Engine** | Analytics backend: portfolio, risk, market data, AI |
+| **Assetra** | The product — umbrella brand for Lumitopia + Atlas |
+| **Lumitopia** | Experience layer: city UI, learning, missions, progress |
+| **Atlas** | Intelligence layer: portfolio, risk, market data, AI |
 
 ---
 
-## Financial City
+## Lumitopia
 
-| Term | Definition |
-|------|------------|
-| **Your City** | User's personal Financial City instance |
+| Term | Meaning |
+|------|---------|
+| **City** | User's personal city inside Lumitopia |
 | **District** | Themed area (Risk, Portfolio, Market, Goals, Economy…) |
 | **Building** | Unlocked financial concept (e.g. 🏘️ Diversification Apartments) |
 | **Mission** | Task triggered by a portfolio or habit insight |
+| **Learning** | Micro-lessons and quizzes |
+| **Progress** | XP, coins, streaks, levels |
 | **XP** | Knowledge progress currency |
 | **Coins** | Activity / habit currency |
 | **Streak** | Consecutive days of engagement |
@@ -29,12 +31,13 @@ Naming conventions for Assetra product, Financial City, and Assetra Engine.
 
 ---
 
-## Assetra Engine
+## Atlas
 
-| Term | Definition |
-|------|------------|
+| Term | Meaning |
+|------|---------|
 | **Holdings / Assets** | User positions (Stock, ETF, Crypto, Cash) |
 | **Groups** | User-defined asset groupings |
+| **Market Data** | Quotes, daily bars, and derived features |
 | **MarketFeature** | Derived daily metrics (returns, volatility) from MLE |
 | **DailyMarketPrice** | Stored Yahoo OHLCV bars |
 | **Risk snapshot** | Aggregated portfolio return / volatility horizons |
@@ -47,6 +50,7 @@ Naming conventions for Assetra product, Financial City, and Assetra Engine.
 
 | ❌ Ambiguous | ✅ Prefer |
 |-------------|----------|
-| "Assetra shows your city" (Engine?) | "Financial City" for UI; "Assetra Engine" for analytics |
-| "Assetra risk API" | "Engine risk API" or "portfolio risk" |
+| "Assetra shows your city" (which layer?) | "Lumitopia" for UI; "Atlas" for analytics |
+| "Assetra risk API" | "Atlas risk API" or "portfolio risk" |
+| "Assetra Engine" / "Financial City" | **Atlas** / **Lumitopia** |
 | City size = account balance | City growth = knowledge + habits + health |

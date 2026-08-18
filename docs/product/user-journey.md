@@ -1,6 +1,6 @@
 # User journey — Day 1 → Day 7
 
-Target experience for MVP validation. Assumes Financial City + Engine integration (M3–M4).
+Target experience for MVP validation. Assumes Lumitopia + Atlas integration (M3–M4).
 
 ---
 
@@ -9,10 +9,10 @@ Target experience for MVP validation. Assumes Financial City + Engine integratio
 | Step | User action | System response |
 |------|-------------|-----------------|
 | 1 | Sign up / log in | Welcome to Assetra; empty city (Level 1) |
-| 2 | Land on Financial City | Brief tutorial: "Build your city by learning and managing money" |
+| 2 | Land on Lumitopia | Brief tutorial: "Build your city by learning and managing money" |
 | 3 | Start first lesson (*Saving* or *Diversification*) | 2–3 min concept + 3-question quiz |
 | 4 | Complete quiz | +30 XP; unlock first building (e.g. 🏠 Residential) |
-| 5 | Optional: add first holding | Engine records portfolio; gentle prompt, not required |
+| 5 | Optional: add first holding | Atlas records portfolio; gentle prompt, not required |
 
 **Goal:** User understands the loop and sees one visible reward.
 
@@ -34,7 +34,7 @@ Target experience for MVP validation. Assumes Financial City + Engine integratio
 
 | Step | User action | System response |
 |------|-------------|-----------------|
-| 1 | Add holdings or link broker | Assetra Engine syncs quotes & allocation |
+| 1 | Add holdings or link broker | Atlas syncs quotes & allocation |
 | 2 | Return to city | First **mission** appears (e.g. tech concentration) |
 | 3 | Tap mission | Plain-language insight + link to relevant lesson |
 
@@ -60,7 +60,7 @@ Target experience for MVP validation. Assumes Financial City + Engine integratio
 |------|-------------|-----------------|
 | 1 | Open city health panel | Three axes: Knowledge / Habits / Portfolio Health |
 | 2 | Tap weak axis | Suggested next lesson or mission |
-| 3 | Optional: refresh quotes | Engine updates holdings value |
+| 3 | Optional: refresh quotes | Atlas updates holdings value |
 
 **Goal:** User knows where to improve without raw metric overload.
 
@@ -96,7 +96,7 @@ Target experience for MVP validation. Assumes Financial City + Engine integratio
 |------|----------|
 | No portfolio yet | City + lessons work; missions deferred until ≥1 holding |
 | Skipped days | Streak resets; city unchanged; no punishment copy |
-| Engine insight unavailable | Generic habit missions only |
+| Atlas insight unavailable | Generic habit missions only |
 
 ---
 

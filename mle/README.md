@@ -1,6 +1,6 @@
-# Portfolio Risk Engine (MLE) — Architecture V1
+# Atlas MLE — Architecture V1
 
-Data pipeline for Assetra’s portfolio risk features (volatility, correlation, VaR, etc.).
+Data pipeline for Atlas portfolio risk features (volatility, correlation, VaR, etc.).
 
 ## Goal
 

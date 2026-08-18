@@ -14,7 +14,7 @@ Engineering milestones for Assetra. Status as of project restructure.
 | **M1** | Playable prototype | Planned | 5-min city + 1 lesson loop (fake data OK) |
 | **M2** | Learning system | Planned | 5 modules + quiz + completion state |
 | **M3** | Gamification | Planned | XP, streaks, buildings, 7-day engagement loop |
-| **M4** | Engine integration | Planned | Health score → missions from real portfolio |
+| **M4** | Atlas → Lumitopia integration | Planned | Health score → missions from real portfolio |
 | **M5** | Simulator | Planned | What-if rebalance with risk preview |
 | **M6** | Validation | Planned | 20–50 users, measure retention & completion |
 | **M7** | Mobile | Planned | React Native / PWA after validation |
@@ -45,7 +45,7 @@ Engineering milestones for Assetra. Status as of project restructure.
 
 | Epic | Deliverables | Status |
 |------|--------------|--------|
-| **City shell** | `/city` route, level + XP bar, 3–5 static buildings | Planned |
+| **City shell** | `/lumitopia` route, level + XP bar, 3–5 static buildings | Planned |
 | **Learn** | 1 lesson (Diversification): concept + 3-question quiz | Planned |
 | **Reward** | +XP, unlock animation, building lights up | Planned |
 | **Progress** | Persist XP (localStorage or minimal DB) | Planned |
@@ -84,7 +84,7 @@ Engineering milestones for Assetra. Status as of project restructure.
 
 ---
 
-## M4 — Engine integration
+## M4 — Atlas → Lumitopia integration
 
 **Status:** Planned · **Duration:** ~2–3 weeks
 
@@ -95,9 +95,9 @@ Engineering milestones for Assetra. Status as of project restructure.
 | **Bridge** | Wire `portfolio-risk`, `MarketFeature`, existing dashboard | Planned |
 | **AI copy** | Mission explanation via advisor context | Planned |
 
-**Depends on:** M1–M3, existing Engine APIs.
+**Depends on:** M1–M3, existing Atlas APIs.
 
-**Exit criteria:** Real portfolio triggers a mission + linked lesson in Financial City.
+**Exit criteria:** Real portfolio triggers a mission + linked lesson in Lumitopia.
 
 ---
 
@@ -108,7 +108,7 @@ Engineering milestones for Assetra. Status as of project restructure.
 | Epic | Deliverables | Status |
 |------|--------------|--------|
 | **Sim UI** | Adjust weights / sell scenario | Planned |
-| **Calc** | Reuse Engine risk + allocation math | Planned |
+| **Calc** | Reuse Atlas risk + allocation math | Planned |
 | **Mission tie-in** | Complete sim → mission done → building upgrade | Planned |
 
 **Exit criteria:** User answers "If I reduce tech from 80% → 50%, how does risk change?"
@@ -142,9 +142,9 @@ Engineering milestones for Assetra. Status as of project restructure.
 
 ---
 
-## Engine track (parallel)
+## Atlas track (parallel)
 
-Capabilities already shipped outside city milestones:
+Capabilities already shipped outside Lumitopia milestones:
 
 | Capability | Status |
 |------------|--------|
@@ -155,4 +155,4 @@ Capabilities already shipped outside city milestones:
 | Health Score API | Planned (M4) |
 | Correlation / VaR | Planned (post-M6) |
 
-Details: [Engine README](../engine/README.md)
+Details: [Atlas README](../atlas/README.md)

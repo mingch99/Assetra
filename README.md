@@ -36,7 +36,7 @@ Details: [`docs/product/PRD.md`](docs/product/PRD.md)
 | Part | Role |
 |------|------|
 | [**Lumitopia**](docs/product/PRD.md#lumitopia-experience-layer) | Experience layer — city, learning, missions, and gamification |
-| [**Atlas**](docs/engine/README.md) | Intelligence layer — portfolio analytics, risk, market data, and AI |
+| [**Atlas**](docs/atlas/README.md) | Intelligence layer — portfolio analytics, risk, market data, and AI |
 
 ```text
 Assetra
