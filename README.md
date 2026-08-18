@@ -1,11 +1,11 @@
 # Assetra
 
-**Build your Financial City. Learn investing through your own portfolio.**
+**Build your future. Create more choices for tomorrow.**
 
-Assetra is a gamified personal finance product where users grow a **Financial City** through daily activity, micro-lessons, and portfolio-aware missions — powered by **Assetra Engine** for holdings, risk, and market analytics.
+Assetra is a gamified investing and financial education platform where users build **Lumitopia** — a city that grows as they learn, build better financial habits, and understand their own portfolio. Behind it, **Atlas** turns portfolio holdings, risk, and market data into personalized insights, missions, and learning experiences.
 
-**Live demo:** [assetra-eight.vercel.app](https://assetra-eight.vercel.app)  
-**Status:** Engine dashboard live · Financial City experience in development (M0–M1)
+**Live demo:** [Assetra](https://assetra-eight.vercel.app)  
+**Status:** Atlas dashboard live · Lumitopia experience in development (M0–M1)
 
 ---
 
