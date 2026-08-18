@@ -1,189 +1,162 @@
 # Assetra
 
-AI-powered portfolio management for stocks, ETFs, and crypto.
+**Build your Financial City. Learn investing through your own portfolio.**
 
-Track holdings, refresh live quotes, analyze allocation and risk, and ask an AI advisor about your portfolio — all in one dashboard.
+Assetra is a gamified personal finance product where users grow a **Financial City** through daily activity, micro-lessons, and portfolio-aware missions — powered by **Assetra Engine** for holdings, risk, and market analytics.
 
-**Live demo:** [Assetra](https://assetra-eight.vercel.app)
-
----
-
-## Features
-
-| Area | What you get |
-|------|----------------|
-| **Portfolio dashboard** | Holdings table, total value, cash / debt / real estate, allocation charts |
-| **Asset types** | Stocks, ETFs, Crypto, plus cash-like balances on the user profile |
-| **Live quotes** | Finnhub-backed refresh for US equities (and mapped crypto where supported) |
-| **Groups** | Organize holdings into custom groups; filter and chart by group |
-| **Broker import** | One-click Investments import via [Plaid](https://plaid.com/) (sandbox / production) |
-| **Risk snapshot** | Portfolio return & volatility over 7d / 30d / YTD / 1Y from stored market features |
-| **AI Portfolio Advisor** | Streaming chat over your holdings context (OpenAI) |
-| **Auth & account** | Email/password, sessions, password reset (Resend), profile & account deletion |
-| **i18n** | English / 中文 UI |
+**Live demo:** [assetra-eight.vercel.app](https://assetra-eight.vercel.app)  
+**Status:** Engine dashboard live · Financial City experience in development (M0–M1)
 
 ---
 
-## Monorepo layout
+## Why Assetra
+
+**Problem** — People want to invest but financial knowledge is fragmented, learning feels disconnected from their holdings, and portfolio trackers show numbers without explaining *why they matter*.
+
+**Solution** — Turn portfolio insights into city missions, pair micro-lessons with the user's real assets, and make progress visible through a city that grows with knowledge, habits, and portfolio health.
+
+---
+
+## How it works
 
 ```text
-Assetra/
-├── frontend/          # Next.js app (UI, API routes, Prisma, AI agent module)
-├── mle/               # Python ETL: Yahoo daily prices → MarketFeature
-└── .github/workflows/ # Weekday cron: sync prices + compute features
+Track  →  Insight  →  Learn  →  Apply  →  Grow
 ```
 
-| Path | Role |
+Log activity and holdings → Engine surfaces insights → complete lessons and missions → try simulations → unlock buildings and expand your city.
+
+Details: [`docs/product/PRD.md`](docs/product/PRD.md)
+
+---
+
+## Product
+
+**Assetra** is the product. It has two parts:
+
+| Part | Role |
 |------|------|
-| [`frontend/`](frontend/) | Dashboard, auth, APIs, Prisma schema, Plaid, AI advisor UI |
-| [`frontend/ai-agent/`](frontend/ai-agent/) | Extractable AI agent core (no DB coupling) — see [its README](frontend/ai-agent/README.md) |
-| [`mle/`](mle/) | Market data pipeline & feature engineering — see [MLE README](mle/README.md) |
+| [**Financial City**](docs/product/PRD.md#financial-city-experience-layer) | Experience layer — learning, missions, gamification, city UI |
+| [**Assetra Engine**](docs/engine/README.md) | Analytics backend — portfolio, risk, market data, AI |
+
+```text
+Assetra
+├── Financial City          (WIP)
+│   ├── Learning
+│   ├── Missions
+│   └── Gamification
+│
+└── Assetra Engine          (live)
+    ├── Portfolio
+    ├── Risk
+    ├── Market Data
+    └── AI
+```
+
+Naming & architecture: [`docs/architecture/system-design.md`](docs/architecture/system-design.md)
+
+---
+
+## MVP (summary)
+
+**Financial City (building):** onboarding, city home, daily check-in, 5 micro-lessons, quiz + XP + building unlock.
+
+**Engine (shipped):** portfolio dashboard, live quotes, Plaid import, risk snapshot, market ETL, AI advisor, auth, EN/ZH.
+
+Full scope, non-goals, and acceptance criteria: [`docs/product/PRD.md`](docs/product/PRD.md)
+
+---
+
+## Architecture
+
+```text
+Financial City (experience)  →  missions, lessons, XP
+         │
+Assetra Engine (analytics)   →  portfolio · quotes · risk · MLE · AI
+         │
+PostgreSQL + external APIs   →  Neon · Finnhub · Plaid · Yahoo · OpenAI
+```
+
+---
+
+## Roadmap
+
+| Milestone | Focus | Status |
+|-----------|-------|--------|
+| **M0** | PRD, docs, user flow | In progress |
+| **M1** | Playable city prototype | Planned |
+| **M2** | Learning system (5 modules) | Planned |
+| **M3** | Gamification engine | Planned |
+| **M4** | Engine → mission integration | Planned |
+| **M5** | What-if simulator | Planned |
+| **M6** | User validation (20–50 users) | Planned |
+| **M7** | Mobile (post-validation) | Planned |
+
+Details: [`docs/product/roadmap.md`](docs/product/roadmap.md)
+
+We will validate engagement through D7 retention, lesson completion, weekly sessions, mission completion, and portfolio connection. Hypotheses and definitions: [`docs/product/metrics.md`](docs/product/metrics.md)
 
 ---
 
 ## Tech stack
 
-**Frontend / API**
-
-- [Next.js](https://nextjs.org/) 16 (App Router) · React 19 · TypeScript · Tailwind CSS 4
-- [Prisma](https://www.prisma.io/) · PostgreSQL ([Neon](https://neon.tech/))
-- [Finnhub](https://finnhub.io/) (live quotes) · [Plaid](https://plaid.com/) (broker link) · [Resend](https://resend.com/) (email) · OpenAI (advisor)
-
-**MLE**
-
-- Python 3.12 · `yfinance` · `pandas` · `psycopg`
-- GitHub Actions cron (weekdays 22:00 UTC)
+| Layer | Stack |
+|-------|-------|
+| **App** | Next.js 16 · React 19 · TypeScript · Tailwind CSS 4 |
+| **Data** | Prisma · PostgreSQL (Neon) |
+| **Engine APIs** | Finnhub · Plaid · CoinGecko · OpenAI |
+| **MLE** | Python 3.12 · yfinance · pandas · GitHub Actions |
 
 ---
 
-## Architecture (high level)
+## Repository
 
 ```text
-                    ┌─────────────────────────────┐
-                    │         Browser UI          │
-                    │  Dashboard · Advisor · Auth │
-                    └──────────────┬──────────────┘
-                                   │
-                    ┌──────────────▼──────────────┐
-                    │     Next.js API routes      │
-                    │  assets · quotes · risk ·   │
-                    │  broker · ai-agent · auth   │
-                    └──────────────┬──────────────┘
-                                   │
-              ┌────────────────────┼────────────────────┐
-              ▼                    ▼                    ▼
-        PostgreSQL            Finnhub / Plaid      OpenAI stream
-     (holdings, sessions,      (live / import)      (advisor)
-      DailyMarketPrice,
-       MarketFeature)
-              ▲
-              │  sync_prices + compute_market_features
-              │  (local CLI or GitHub Action)
-        Yahoo Finance
+Assetra/
+├── README.md
+├── docs/
+│   ├── product/           # PRD, roadmap, metrics, user journey
+│   ├── engine/            # Engine setup & deploy
+│   └── architecture/      # System design
+├── frontend/              # Next.js (Engine + future City UI)
+├── mle/                   # Market data ETL
+└── .github/workflows/
 ```
-
-- **Finnhub** powers on-demand quote refresh in the app.
-- **Yahoo Finance** (via `mle/`) persists daily OHLCV for offline risk features — not called on every dashboard load.
-- Risk UI reads aggregated metrics from `MarketFeature` (see `GET /api/portfolio/risk`).
 
 ---
 
-## Quick start (frontend)
-
-### Prerequisites
-
-- Node.js 20+
-- A PostgreSQL database (Neon pooled connection string recommended for Vercel)
-
-### Setup
+## Getting started
 
 ```bash
 git clone https://github.com/mingch99/Assetra.git
 cd Assetra/frontend
-cp .env.example .env   # fill in values — see below
-npm install
-npx prisma migrate deploy
-npm run dev
+cp .env.example .env
+npm install && npx prisma migrate deploy && npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
-
-### Environment variables
-
-Copy from [`frontend/.env.example`](frontend/.env.example). Minimum for local auth + holdings:
-
-| Variable | Purpose |
-|----------|---------|
-| `DATABASE_URL` | Neon **pooled** Postgres URL |
-| `NEXT_PUBLIC_APP_URL` | e.g. `http://localhost:3000` |
-| `FINNHUB_API_KEY` | Live US quotes |
-| `OPENAI_API_KEY` | AI Portfolio Advisor |
-| `RESEND_API_KEY` / `RESEND_FROM_EMAIL` | Password-reset email (optional; links log to console without key) |
-| `PLAID_CLIENT_ID` / `PLAID_SECRET` / `PLAID_ENV` | Broker import |
-| `BROKER_TOKEN_ENCRYPTION_KEY` | Encrypt Plaid access tokens at rest |
+Engine setup, env vars, MLE, and deploy: [`docs/engine/README.md`](docs/engine/README.md)
 
 ---
 
-## Market data pipeline (MLE)
+## Disclaimer
 
-Persist daily bars and derived features so the risk card can run without hitting live quote APIs.
-
-```bash
-cd mle
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-# Needs DATABASE_URL (same as frontend/.env)
-python scripts/sync_prices.py --period 1mo
-python scripts/compute_market_features.py
-```
-
-**Automated sync:** [`.github/workflows/sync-daily-prices.yml`](.github/workflows/sync-daily-prices.yml) runs on weekdays after the US close. Set repository secret `DATABASE_URL` once.
-
-**CI:** [`.github/workflows/mle-ci.yml`](.github/workflows/mle-ci.yml) runs `pytest` on `mle/**` changes (no live Yahoo / DB).
-
-Feature columns include MA20, multi-horizon returns, and annualized volatility windows. Full details: [`mle/README.md`](mle/README.md).
-
-Inspect tables with:
-
-```bash
-cd frontend && npx prisma studio
-```
-
----
-
-## AI Portfolio Advisor
-
-- Core logic lives in [`frontend/ai-agent/`](frontend/ai-agent/) (types, prompts, streaming client, chat widget).
-- Assetra wires it via `lib/integrations/ai-agent/` (loads portfolio context from the DB) and a thin `POST /api/ai-agent/chat` route.
-- Designed so the agent package can later move to a standalone service.
-
----
-
-## Deploy
-
-The frontend is set up for **Vercel**:
-
-1. Import the repo; set **Root Directory** to `frontend`.
-2. Add the same env vars as `.env.example` (use Neon’s **pooled** `DATABASE_URL`).
-3. Build uses `prisma generate` + `migrate deploy` + `next build`.
-
-For daily price sync in production, configure the GitHub Action `DATABASE_URL` secret as described in the MLE README.
-
----
-
-## Roadmap (near term)
-
-- [x] Auth, holdings CRUD, live quotes, groups, EN/ZH
-- [x] Daily price ETL + MarketFeature + portfolio risk card
-- [x] Deeper risk metrics (correlation, VaR) and richer risk UI
-- [ ] Plaid broker import
-- [ ] AI advisor chat
-
+Assetra provides **financial education and portfolio analytics**, not investment advice, brokerage, or tax services. Users are responsible for their own financial decisions.
 
 ---
 
 ## License
 
 [MIT](LICENSE) © 2026 Mingcheng Fan
+
+---
+
+## Documentation
+
+| Doc | Description |
+|-----|-------------|
+| [Product PRD](docs/product/PRD.md) | Vision, users, MVP, principles, glossary |
+| [Roadmap](docs/product/roadmap.md) | Milestones, engineering deliverables, status |
+| [User journey](docs/product/user-journey.md) | Day 1 → Day 7 experience |
+| [Metrics](docs/product/metrics.md) | Success metrics and validation hypotheses |
+| [Engine](docs/engine/README.md) | Portfolio engine — setup, architecture, deploy |
+| [System design](docs/architecture/system-design.md) | Product architecture and naming |
+| [MLE](mle/README.md) | Market data pipeline |
