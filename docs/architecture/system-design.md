@@ -1,164 +1,116 @@
 # System design
 
-Product architecture and naming for Assetra.
+How Assetra's MVP is put together.
 
 ---
 
-## Naming model
+## Components
 
 ```text
-Assetra                    ← product (brand)
-├── Lumitopia              ← experience layer
-│   ├── City
-│   ├── Learning
-│   ├── Missions
-│   └── Progress
-│
-└── Atlas                  ← intelligence layer
-    ├── Portfolio
-    ├── Risk
-    ├── Market Data
-    └── AI
+┌──────────────────────────────────────────────────────────────┐
+│ Browser                                                      │
+│  /            login / register                               │
+│  /dashboard   summary · charts · holdings table · AI chat    │
+└───────────────────────────────┬──────────────────────────────┘
+                                │ fetch (lib/api/*)
+┌───────────────────────────────▼──────────────────────────────┐
+│ Next.js route handlers (frontend/app/api/*)                  │
+│  auth · assets · groups · portfolio · quotes · symbols       │
+│  broker (Plaid) · ai-agent/chat                              │
+│                 │                                            │
+│                 ▼                                            │
+│ Domain logic (frontend/lib/*)                                │
+│  stores · prices · market · broker · portfolio-history       │
+└──────┬─────────────────────┬─────────────────────┬───────────┘
+       │ Prisma              │ HTTP                │ HTTP (stream)
+       ▼                     ▼                     ▼
+┌──────────────┐   ┌───────────────────────┐   ┌──────────┐
+│ PostgreSQL   │   │ Finnhub · CoinGecko   │   │ OpenAI   │
+│ (Neon)       │   │ Plaid · Resend        │   └──────────┘
+└──────▲───────┘   └───────────────────────┘
+       │ psycopg
+┌──────┴────────────────────────────┐
+│ mle/ (Python, GitHub Actions)     │◀── Yahoo Finance
+│ sync_prices → compute_features    │
+└───────────────────────────────────┘
 ```
 
-| Name | Layer | User-facing? | Repo (today) |
-|------|-------|--------------|--------------|
-| **Assetra** | Product | Yes (brand) | Root, marketing |
-| **Lumitopia** | Experience | Yes | `frontend/app/lumitopia/` *(planned)* |
-| **Atlas** | Intelligence | Mostly internal | `frontend/` APIs, `mle/` |
-
-### Copy guidelines
-
-- ✅ "Welcome to Assetra" / "Build your city in Lumitopia"
-- ✅ "Your portfolio health" (Atlas output surfaced in Lumitopia)
-- ❌ "Assetra analyzes your city" (ambiguous)
-- ❌ "Atlas dashboard" in consumer UI (use "Portfolio" or "Insights")
-
-Glossary: [docs/product/glossary.md](../product/glossary.md)
+There is no separate backend service: the Next.js route handlers are the API.
 
 ---
 
-## Two-layer architecture
+## Data flows
+
+### 1. Recording a financial position
+
+1. User adds a holding (`POST /api/assets`) or imports from Plaid (`/api/broker/*`).
+2. `lib/assets-store` writes the `Asset` row.
+3. For market types (Stock / ETF / Crypto), `scheduleEnsureSymbolHistory` runs in the background: if the symbol has less than ~1 year of bars, it backfills daily closes from Finnhub / CoinGecko and recomputes `MarketFeature`.
+4. Cash, debt and real estate are fields on `User`, edited through `PUT /api/portfolio`.
+
+### 2. Rendering the dashboard
+
+| Widget | Source |
+|--------|--------|
+| Summary card | `GET /api/assets` + `GET /api/portfolio` + `GET /api/quotes` (live) |
+| Allocation chart | Same data, grouped client-side (`lib/asset-categories`) |
+| Value history *(component built, not rendered yet)* | `GET /api/portfolio/history?range=…` — rebuilt from **current** holdings × historical closes (Finnhub / CoinGecko) |
+| Return / volatility card | `GET /api/portfolio/risk` — value-weighted latest `MarketFeature` per holding |
+
+### 3. Daily market data (ETL)
+
+1. GitHub Actions runs weekdays at 22:00 UTC.
+2. `sync_prices.py --period 5d` reads distinct Stock / ETF / Crypto symbols from `Asset`, fetches Yahoo OHLCV (crypto as `BTC-USD` etc.), upserts `DailyMarketPrice` on `(symbol, date)`.
+3. `compute_market_features.py` recomputes `MarketFeature` from all stored bars.
+4. When a symbol is no longer held by anyone, the app deletes its rows (`maybePurgeSymbolMarketData`).
+
+Market tables are **shared across users** — one row per symbol per day.
+
+### 4. AI advisor
+
+1. `POST /api/ai-agent/chat` authenticates the user.
+2. `lib/integrations/ai-agent/portfolio-context-loader.ts` loads holdings, groups, cash/debt and live quotes, and `ai-agent/` turns them into a JSON summary (allocation, P&L, leverage, per-holding metrics).
+3. The summary is placed in the system prompt; the reply streams back from OpenAI.
+
+**Gap:** step 2 does not read `DailyMarketPrice` / `MarketFeature` yet. See [roadmap](../product/roadmap.md#next).
+
+---
+
+## Data model
+
+Full schema: [`frontend/prisma/schema.prisma`](../../frontend/prisma/schema.prisma) · overview: [`frontend/prisma/README.md`](../../frontend/prisma/README.md)
 
 ```text
-┌──────────────────────────────────────────────────┐
-│              Lumitopia (in development)          │
-│   City · Learning · Missions · Progress          │
-└────────────────────────┬─────────────────────────┘
-                         │ REST / server actions
-                         │ missions, health, context
-┌────────────────────────▼─────────────────────────┐
-│                     Atlas                        │
-│  ┌────────────┐ ┌────────┐ ┌──────────┐ ┌─────┐ │
-│  │ Portfolio  │ │  Risk  │ │  Market  │ │ AI  │ │
-│  │ CRUD·Plaid │ │ metrics│ │ ETL·quotes│ │chat│ │
-│  └────────────┘ └────────┘ └──────────┘ └─────┘ │
-└────────────────────────┬─────────────────────────┘
-                         │
-              ┌──────────▼──────────┐
-              │     PostgreSQL      │
-              │  User · Asset ·     │
-              │  DailyMarketPrice · │
-              │  MarketFeature ·    │
-              │  (City tables TBD)  │
-              └─────────────────────┘
+User ─┬─< Asset >─┬─ AssetGroup
+      │           └─ BrokerConnection
+      ├─< AssetGroup
+      ├─< BrokerConnection
+      ├─< Session
+      ├─< PasswordResetToken
+      └─< UserActivity
+
+DailyMarketPrice   (symbol, date)  shared
+MarketFeature      (symbol, date)  shared
 ```
-
-### Data flow (target)
-
-1. User updates holdings → Atlas stores `Asset`, refreshes quotes.
-2. MLE cron fills `DailyMarketPrice` → `MarketFeature`.
-3. Atlas computes risk / health → exposes via API.
-4. Lumitopia reads insights → creates **Mission**.
-5. User completes lesson / sim → Lumitopia updates XP & buildings.
-6. AI Advisor receives portfolio + mission context for explanations.
 
 ---
 
-## Repository mapping
+## Two writers for market data
 
-```text
-Assetra/
-├── frontend/
-│   ├── app/
-│   │   ├── dashboard/         # Atlas UI (today)
-│   │   ├── lumitopia/         # Lumitopia city (planned)
-│   │   ├── learn/             # Learning (planned)
-│   │   └── api/               # Atlas APIs
-│   ├── features/              # (planned) domain modules
-│   ├── ai-agent/              # Atlas — AI module
-│   └── lib/
-│       ├── market/            # Atlas — risk
-│       ├── prices/            # Atlas — quotes
-│       └── broker/            # Atlas — Plaid
-├── mle/                       # Atlas — market ETL
-└── docs/
-    ├── product/
-    ├── atlas/                 # this layer's setup docs
-    └── architecture/          # this file
-```
+| Writer | When | Source | Columns filled |
+|--------|------|--------|----------------|
+| `mle/` (Python) | Weekday cron | Yahoo Finance | Full OHLCV + volume |
+| `lib/market/symbol-lifecycle.ts` (TS) | A symbol is added | Finnhub / CoinGecko | Close only (open = high = low = close, volume 0) |
 
-### Extraction boundaries (future)
-
-| Module | Can become |
-|--------|------------|
-| `frontend/ai-agent/` | npm package or microservice |
-| `mle/` | Scheduled worker / separate repo |
-| `features/portfolio/` | Shared package if multi-app |
-
-Lumitopia should depend on Atlas via **API contracts**, not direct DB access from UI components.
-
----
-
-## Atlas subsystems (current)
-
-| Subsystem | Key paths | External deps |
-|-----------|-----------|---------------|
-| **Portfolio** | `lib/assets-store`, `app/api/assets` | Prisma |
-| **Quotes** | `lib/prices/finnhub`, `coingecko` | Finnhub, CoinGecko |
-| **Risk** | `lib/market/portfolio-risk` | `MarketFeature` |
-| **Broker** | `lib/broker/*`, Plaid routes | Plaid |
-| **MLE** | `mle/scripts/*` | Yahoo Finance |
-| **AI** | `ai-agent/`, `api/ai-agent/chat` | OpenAI |
-
-Setup & deploy: [Atlas README](../atlas/README.md)
-
----
-
-## Lumitopia subsystems (planned)
-
-| Subsystem | Responsibility |
-|-----------|----------------|
-| **City** | Map, buildings, districts, level display |
-| **Progress** | XP, coins, streaks, levels |
-| **Learning** | Lessons, quizzes, completions |
-| **Missions** | Rules engine: insight → mission |
-| **Simulator** | What-if allocation (calls Atlas risk) |
-
-### Planned schema (sketch)
-
-```text
-UserProgress · UserBuilding · DailyCheckIn
-Lesson · LessonCompletion · Mission · MissionCompletion
-PortfolioHealthSnapshot
-```
-
-Full PRD: [docs/product/PRD.md](../product/PRD.md)
+Both upsert on `(symbol, date)`, so the nightly Yahoo run overwrites backfilled rows with full bars once they fall inside its window. The feature math is implemented twice (`mle/scripts/compute_market_features.py` and `lib/market/features.ts`) and must stay consistent.
 
 ---
 
 ## CI / ops
 
-| Workflow | Scope |
-|----------|-------|
-| `mle-ci.yml` | Python unit tests |
-| `sync-daily-prices.yml` | Market ETL cron |
-| *(planned)* `frontend-ci.yml` | Lint, typecheck, tests |
+| Workflow | Trigger | Does |
+|----------|---------|------|
+| [`mle-ci.yml`](../../.github/workflows/mle-ci.yml) | Push / PR touching `mle/**` | `pytest` |
+| [`sync-daily-prices.yml`](../../.github/workflows/sync-daily-prices.yml) | Weekdays 22:00 UTC, manual | Price sync + feature compute |
 
----
-
-## Related
-
-- [Product PRD](../product/PRD.md)
-- [Roadmap](../product/roadmap.md)
-- [Atlas README](../atlas/README.md)
+Hosting: Vercel (root directory `frontend`). Setup: [setup.md](../setup.md).

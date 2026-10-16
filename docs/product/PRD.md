@@ -1,256 +1,104 @@
-# Assetra — Product Requirements (PRD)
+# Assetra — Product Requirements (MVP)
 
-Internal product document. Summary lives in the [root README](../../README.md).
-
----
-
-## Vision
-
-**Help people build the financial knowledge and habits that give their future selves more choices.**
+Summary lives in the [root README](../../README.md).
 
 ---
 
-## Product Goal
+## Goal
 
-Assetra helps people become better investors over time — not by reading generic financial content, but by learning through **their own money**.
-
-In six months on Assetra, a user should better understand their portfolio, build stronger financial habits, and make more informed investment decisions than when they started.
-
----
-
-## Naming
-
-| Term | Definition |
-|------|------------|
-| **Assetra** | The product |
-| **Lumitopia** | Experience layer — city, learning, missions, progress |
-| **Atlas** | Intelligence layer — portfolio analytics, risk, market data, and AI |
-
-**Naming rule:** Use **Assetra** only for the overall product. Use **Lumitopia** for the experience layer and **Atlas** for the intelligence layer.
-
-See [`docs/architecture/system-design.md`](../architecture/system-design.md) for system boundaries and architecture.
+Give an individual investor **one place to see their full financial position** — what they own, what they owe, and how it is performing — and an **AI advisor that answers questions using that real data** instead of generic advice.
 
 ---
 
 ## Problem
 
-Investing is easy to start, but hard to understand.
-
-Many new investors struggle because:
-
-- Financial knowledge is fragmented across videos, articles, social media, and AI tools.
-- Learning often feels generic and disconnected from their actual holdings.
-- Portfolio trackers show *what* is happening without explaining **why it matters**.
-- There is little motivation to review finances and build investing habits consistently.
+- Holdings are spread across brokers, exchanges and bank accounts; there is no single view of net worth.
+- Brokerage apps show positions but not debt, cash or real estate, so the user can't see leverage or liquidity.
+- Generic AI chatbots don't know what the user owns, so their answers about "my portfolio" are guesses.
+- Answering "how risky has my portfolio been lately?" needs price history, which most personal trackers don't keep.
 
 ---
 
 ## Target user
 
-**Primary (v1):** Young adults who are starting to invest — curious, already holding or beginning to build a portfolio across stocks, ETFs, or crypto, but lacking structured financial literacy.
+Individual investors holding a mix of US stocks, ETFs and crypto who want a consolidated view and plain-language analysis.
 
-**Not targeting (v1):** Professional traders, day traders, or users seeking stock-picking signals.
-
----
-
-## Value proposition
-
-| For users | What Assetra offers |
-|-----------|---------------------|
-| **Engagement** | Lumitopia grows as users learn and build better financial habits |
-| **Personalization** | Lessons and missions connected to their own portfolio |
-| **Clarity** | Atlas-powered insights explained in plain language |
-| **Habit** | Daily check-ins, streaks, and visible progress across knowledge, habits, and portfolio health |
-
-### Product hypothesis
-
-> **Education drives discovery and engagement. Personalization drives long-term retention.**
-
-This hypothesis will be validated through the MVP and early user testing.
-
-### Monetization hypothesis (post-MVP)
-
-Potential premium features may include advanced portfolio analytics, AI coaching, simulations, goal-based allocation, and personalized reviews.
-
-Pricing and feature gating are out of scope for v1 and will be evaluated after product validation.
+**Not targeting:** day traders, professional portfolio managers, users looking for buy/sell signals.
 
 ---
 
-## Core loop
+## MVP scope
 
-```text
-Track  →  Insight  →  Learn  →  Apply  →  Grow
-  │          │          │         │         │
-  │          │          │         │         └─ City grows (buildings, districts)
-  │          │          │         └─ Simulation / portfolio experiment
-  │          │          └─ Micro-lesson + quiz (+XP)
-  │          └─ Atlas insight → Lumitopia mission
-  └─ Check in / update portfolio
-```
+### 1. Financial position
 
-**Example:** Atlas detects 58% technology exposure → Lumitopia creates a concentration-risk mission → user completes the Diversification lesson → explores a what-if allocation → unlocks 🏘️ Diversification Apartments.
+| Requirement | Status |
+|-------------|--------|
+| Account registration, login, password reset by email | Done |
+| Add / edit / delete holdings (Stock, ETF, Crypto) with symbol search | Done |
+| Record cash, debt and real-estate amounts | Done |
+| Import holdings from a broker via Plaid Investments | Done |
+| Group holdings into custom groups | Done |
 
----
+### 2. Visualization
 
-## Lumitopia (experience layer)
+| Requirement | Status |
+|-------------|--------|
+| Summary: total assets, debt, net equity, unrealized P&L | Done |
+| Allocation chart (by type, group, crypto bucket) | Done |
+| Portfolio value over time (7d / 30d / 90d / YTD / 1Y) | Built (`PortfolioValueChart` + `/api/portfolio/history`), **not yet rendered on the dashboard** |
+| Return and volatility card (7d / 30d / YTD / 1Y) | Done |
+| English / 中文 UI | Done |
 
-Lumitopia is the visual representation of a user's financial journey. The city grows through learning and consistent financial habits, while its buildings reflect the user's real portfolio.
+### 3. Daily market data
 
-City growth reflects **financial maturity and progress, not portfolio size**. A larger portfolio should not automatically create a larger or more advanced city.
+| Requirement | Status |
+|-------------|--------|
+| Store daily OHLCV for every symbol any user holds (`DailyMarketPrice`) | Done |
+| Derive per-symbol features: MA20, returns, annualized volatility (`MarketFeature`) | Done |
+| Run automatically every weekday after US close | Done |
+| Backfill ~1 year of history when a new symbol is added | Done |
+| Purge market data for symbols no user holds any more | Done |
 
-### Progress model
+### 4. AI advisor
 
-Lumitopia is shaped by three dimensions:
-
-| Dimension | Represents | Effect on Lumitopia |
-|-----------|------------|----------------------|
-| **Knowledge** | What the user has learned | Earns **XP** and **expands the available city area** |
-| **Habits** | Consistent financial engagement | Earns **Coins** used to **build and customize the city** |
-| **Portfolio** | What the user owns | Influences building types, districts, and **the visual identity of the city** |
-
-### Resource model
-
-| Resource | Earned / determined by | Used for |
-|----------|-------------------------|----------|
-| **Coins** | Check-ins, reviews, missions, and other healthy financial activities | Build, upgrade, and customize buildings |
-| **XP** | Lessons, quizzes, simulations, and learning challenges | Increase City Level and unlock additional city space |
-| **City Level** | Accumulated XP | Determines city size and unlocks new areas and progression |
-| **Buildings** | Portfolio holdings classified by Atlas | Visually represent the user's portfolio composition |
-| **Districts** | Groups of related asset categories | Organize buildings and make portfolio allocation visible through the city |
-
-### Portfolio → City mapping
-
-Atlas classifies portfolio holdings into asset types and sectors. Lumitopia translates those classifications into buildings and districts.
-
-Examples:
-
-| Portfolio category | Lumitopia representation |
-|--------------------|---------------------------|
-| Real estate / REITs | Housing and real estate |
-| Broad-market ETFs | Commercial / office buildings |
-| Technology | Technology buildings |
-| Financials | Banks and financial buildings |
-| Healthcare | Hospitals and research facilities |
-| Industrials | Factories and industrial buildings |
-| Energy / Utilities | Energy infrastructure |
-| Crypto | Futuristic / space-themed structures |
-| Cash | Parks, reserves, or open space |
-
-Exact mappings are subject to iteration during prototype testing.
-
-### Core rules
-
-1. **Knowledge expands the city** — learning earns XP, and XP unlocks more space.
-2. **Habits build the city** — consistent financial activity earns Coins that users can spend on construction and customization.
-3. **Your portfolio shapes the city** — holdings influence the types of buildings and districts that appear.
-4. **Portfolio size does not determine city size** — progress should reflect learning and engagement rather than wealth.
-5. **Reward learning, not trading** — buying or selling assets does not directly generate Coins or XP.
-
-> **Learn → Earn → Build → Expand**
-
-The goal is for Lumitopia to make financial progress visible: as users learn more, build better habits, and understand their portfolio, their city becomes larger, richer, and more personalized.
+| Requirement | Status |
+|-------------|--------|
+| Streaming chat panel on the dashboard | Done |
+| Context: holdings, allocation, cash, debt, groups, live quotes | Done |
+| Context: stored market history and features | **Not yet** — see [roadmap](roadmap.md) |
+| Answers in the user's UI language | Done |
 
 ---
 
-## Atlas (intelligence layer)
+## Non-goals (MVP)
 
-Atlas powers portfolio data, market intelligence, risk analytics, and portfolio-aware AI. Users primarily interact with Lumitopia; Atlas operates underneath, providing the insights and signals that Lumitopia translates into missions and learning experiences.
-
-Current capabilities: [Atlas README](../atlas/README.md)
-
----
-
-## MVP features
-
-### M1 — Playable Lumitopia prototype
-
-- [ ] Lumitopia city home
-- [ ] 1 micro-lesson
-- [ ] 1 quiz
-- [ ] XP reward
-- [ ] 1 building unlock
-- [ ] Visible city change after completion
-- [ ] Local / mock state is acceptable
-
-### M2 — Learning system
-
-- [ ] 5 micro-lessons: Saving, Compound Interest, Stocks, ETFs, Diversification
-- [ ] Quiz system
-- [ ] Learning progress
-- [ ] XP progression
-- [ ] User onboarding
-- [ ] Progress persistence
-
-### M3 — Progress & gamification
-
-- [ ] Daily financial check-in
-- [ ] Coins and XP
-- [ ] Building unlocks
-- [ ] Streaks
-- [ ] City progression
-
-### M4 — Atlas integration
-
-- [ ] Portfolio Health signals
-- [ ] Atlas insight → Lumitopia mission pipeline
-- [ ] Portfolio-aware missions
-- [ ] AI-assisted mission explanations
-
-### M5 — What-if simulator
-
-- [ ] Allocation simulation
-- [ ] Risk-impact preview
-- [ ] Connect simulation results to learning content
-
-### Atlas — already built
-
-- [x] Portfolio dashboard, groups, authentication, EN/ZH
-- [x] Live quotes, Plaid import, risk analytics
-- [x] Market ETL and MLE CI
-- [x] AI Portfolio Advisor
+- Buy/sell recommendations or trade execution
+- Licensed financial advice
+- Transaction-level history (cost basis comes from user input or the broker)
+- Budgeting and expense tracking
+- Non-US equities or non-USD currencies
+- Native mobile apps
+- Payments / subscriptions
 
 ---
 
-## Non-goals (v1)
+## Principles
 
-- Native iOS / Android
-- 50+ lesson library
-- Social / leaderboards
-- Stock recommendations or "AI pick"
-- Licensed financial advisory
-- Full SimCity-scale city builder
-- Full budgeting and expense tracking
-- Subscription / payments
-
----
-
-## Design principles
-
-1. **Learn your money** — lessons link to the user's portfolio when possible.
-2. **Track → Learn → Apply → Build** — reward learning and review, not over-trading.
-3. **Insights become experiences** — Atlas produces portfolio intelligence; Lumitopia translates it into missions and learning experiences.
-4. **Explain, don't prescribe** — no buy/sell calls in v1.
-5. **City reflects maturity** — progress = knowledge + habits + health, not balance.
+1. **Your data, not generic data** — every number and AI answer is grounded in the user's own holdings.
+2. **Explain, don't prescribe** — the advisor analyzes and explains; it does not tell users what to buy or sell.
+3. **Don't invent numbers** — if data is missing, say so.
+4. **Store once, reuse** — market data is shared across users and computed offline, not fetched per request.
 
 ---
 
 ## Glossary
 
-See dedicated [glossary](./glossary.md) or quick reference:
-
 | Term | Meaning |
 |------|---------|
-| **District** | Themed area of Lumitopia tied to a financial domain |
-| **Building** | Visual representation of an unlocked financial concept |
-| **Mission** | Learning or review task triggered by user progress or portfolio insights |
-| **Portfolio Health** | Portfolio characteristics derived from Atlas risk and diversification signals |
-
----
-
-## Related docs
-
-- [Roadmap](./roadmap.md)
-- [User journey](./user-journey.md)
-- [Metrics](./metrics.md)
-- [System design](../architecture/system-design.md)
-- [Atlas](../atlas/README.md)
+| **Holding / Asset** | A position the user owns (Stock, ETF, Crypto, or Cash-type asset) |
+| **Group** | User-defined bundle of holdings |
+| **Net equity** | Total assets − debt |
+| **DailyMarketPrice** | One stored daily bar (OHLCV) per symbol per date |
+| **MarketFeature** | Features derived from daily bars (MA20, returns, volatility) per symbol per date |
+| **Risk snapshot** | Value-weighted portfolio return / volatility from the latest `MarketFeature` rows |
+| **AI advisor** | Chat assistant that receives the user's portfolio as context |
