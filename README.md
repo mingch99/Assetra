@@ -1,117 +1,57 @@
 # Assetra
 
-**Build today. Unlock more choices tomorrow.**
+**Your whole financial picture in one place, with an AI advisor that knows your portfolio.**
 
-Assetra is a gamified investing and financial education platform where users build **Lumitopia** — a city that grows as they learn, build better financial habits, and understand their own portfolio. Behind it, **Atlas** serves as the intelligence engine, turning portfolio holdings, risk, and market data into personalized insights, missions, and learning experiences.
+Assetra is a personal finance dashboard. You record what you own (stocks, ETFs, crypto, cash, real estate) and what you owe. Assetra values everything with live quotes and shows it as charts. Every trading day, a backend job stores market data (close, volume, returns, volatility) for every symbol you hold. That data and your holdings feed an AI agent that answers questions about your portfolio.
 
-**Live demo:** [Assetra](https://assetra-eight.vercel.app)  
-**Status:** Atlas engine live · Lumitopia in development
+**Live demo:** [assetra-eight.vercel.app](https://assetra-eight.vercel.app)
+**Status:** MVP — core tracking, charts, daily market data pipeline and AI advisor are live.
 
 ---
 
-## Why Assetra
+## What it does
 
-**Problem** — Investing is easy to start, but hard to understand. Financial knowledge is fragmented, education feels disconnected from real portfolios, and traditional portfolio trackers show users what is happening without explaining *why it matters*.
-
-**Solution** — Assetra turns investing into a personalized learning experience. Portfolio insights become missions, financial concepts connect to the user’s real holdings, and progress comes to life through **Lumitopia** — a city that grows with their knowledge, habits, and portfolio health.
+| Feature | Description |
+|---------|-------------|
+| **Holdings** | Add stocks, ETFs and crypto manually (with symbol search), or import them from a broker via Plaid |
+| **Balance sheet** | Record cash, debt and real estate; see total assets, net equity and debt ratio |
+| **Live valuation** | Quotes from Finnhub (US equities) and CoinGecko (crypto), USD-denominated |
+| **Charts** | Allocation breakdown by type, group and crypto bucket |
+| **Groups** | Bundle holdings into custom groups; filter and chart by group |
+| **Risk snapshot** | Value-weighted portfolio return and volatility over 7d / 30d / YTD / 1Y |
+| **Daily market data** | Weekday job stores OHLCV for each held symbol and derives features (MA20, returns, volatility) |
+| **AI advisor** | Streaming chat that answers questions using your actual portfolio data |
+| **Accounts** | Email/password auth, password reset by email, English / 中文 UI |
 
 ---
 
 ## How it works
 
 ```text
-Track  →  Insight  →  Learn  →  Apply  →  Grow
+            ┌───────────────────────────────┐
+  User ───▶ │  Next.js app (frontend/)      │
+            │  Dashboard · API routes · AI  │
+            └──────┬───────────────┬────────┘
+                   │               │
+          live quotes, import   prompt + portfolio context
+                   │               │
+     Finnhub · CoinGecko · Plaid   OpenAI
+                   │
+            ┌──────▼────────────────────────┐
+            │  PostgreSQL (Neon)            │
+            │  User · Asset · AssetGroup    │
+            │  DailyMarketPrice             │
+            │  MarketFeature                │
+            └──────▲────────────────────────┘
+                   │  weekdays 22:00 UTC
+            ┌──────┴────────────────────────┐
+            │  Market data ETL (mle/)       │
+            │  Yahoo Finance → prices →     │
+            │  features                     │
+            └───────────────────────────────┘
 ```
 
-Log activity and holdings → **Atlas** surfaces personalized insights → complete lessons and missions → try simulations → unlock buildings and grow **Lumitopia**.
-
-Details: [`docs/product/PRD.md`](docs/product/PRD.md)
-
----
-
-## Product
-
-**Assetra** is the product. It is built around two core systems:
-
-| Part | Role |
-|------|------|
-| [**Lumitopia**](docs/product/PRD.md#lumitopia-experience-layer) | Experience layer — city, learning, missions, and gamification |
-| [**Atlas**](docs/atlas/README.md) | Intelligence layer — portfolio analytics, risk, market data, and AI |
-
-```text
-Assetra
-├── Lumitopia               (in development)
-│   ├── City
-│   ├── Learning
-│   ├── Missions
-│   └── Progress
-│
-└── Atlas                   (live)
-    ├── Portfolio
-    ├── Risk
-    ├── Market Data
-    └── AI
-```
-
-Naming & architecture: [`docs/architecture/system-design.md`](docs/architecture/system-design.md)
-
----
-
-## MVP (summary)
-
-**Lumitopia (in development):** onboarding, city home, daily check-ins, 5 micro-lessons, quizzes, XP, and building unlocks.
-
-**Atlas (live):** portfolio dashboard, live quotes, Plaid import, risk analytics, market ETL, AI advisor, authentication, and EN/ZH support.
-
-Full scope, non-goals, and acceptance criteria: [`docs/product/PRD.md`](docs/product/PRD.md)
-
----
-
-## Architecture
-
-```text
-┌───────────────────────────────────────────────┐
-│                   Lumitopia                   │
-│                Experience Layer               │
-│      City · Learning · Missions · Progress    │
-└───────────────────────┬───────────────────────┘
-                        │
-                 insights · actions
-                        │
-┌───────────────────────▼───────────────────────┐
-│                     Atlas                     │
-│               Intelligence Layer              │
-│    Portfolio · Risk · Market Data · MLE · AI  │
-└───────────────────────┬───────────────────────┘
-                        │
-                  data · services
-                        │
-┌───────────────────────▼───────────────────────┐
-│            Data & External Services           │
-│ PostgreSQL · Finnhub · Plaid · Yahoo · OpenAI │
-└───────────────────────────────────────────────┘
-```
-
-Detailed system architecture: [`docs/architecture/system-design.md`](docs/architecture/system-design.md).
-
----
-
-## Roadmap
-
-| Milestone | Focus | Status |
-|-----------|-------|--------|
-| **M0** | PRD, docs, and user flow | In progress |
-| **M1** | Playable Lumitopia prototype | Planned |
-| **M2** | Learning system (5 modules) | Planned |
-| **M3** | Progress & gamification system | Planned |
-| **M4** | Atlas → Lumitopia integration | Planned |
-| **M5** | What-if portfolio simulator | Planned |
-| **M6** | User validation (20–50 users) | Planned |
-| **M7** | Mobile experience (post-validation) | Planned |
-
-Details: [`docs/product/roadmap.md`](docs/product/roadmap.md)
-
-We will validate engagement through D7 retention, lesson completion, weekly sessions, mission completion, and portfolio connection. Hypotheses and definitions: [`docs/product/metrics.md`](docs/product/metrics.md)
+Details: [`docs/architecture/system-design.md`](docs/architecture/system-design.md)
 
 ---
 
@@ -119,12 +59,12 @@ We will validate engagement through D7 retention, lesson completion, weekly sess
 
 | Layer | Stack |
 |-------|-------|
-| **Frontend** | Next.js 16 · React 19 · TypeScript · Tailwind CSS 4 |
-| **Backend** | FastAPI · Prisma |
-| **Database** | PostgreSQL (Neon) |
-| **Atlas / MLE** | Python 3.12 · pandas · yfinance |
-| **External services** | Finnhub · Plaid · CoinGecko · OpenAI |
-| **CI/CD** | GitHub Actions |
+| **App & API** | Next.js 16 (App Router, route handlers) · React 19 · TypeScript · Tailwind CSS 4 |
+| **Database** | PostgreSQL (Neon) · Prisma 6 |
+| **Market data ETL** | Python 3.12 · pandas · yfinance · psycopg |
+| **External services** | Finnhub · CoinGecko · Plaid · OpenAI · Resend |
+| **CI / scheduling** | GitHub Actions (pytest CI, daily price sync cron) |
+| **Hosting** | Vercel |
 
 ---
 
@@ -132,15 +72,24 @@ We will validate engagement through D7 retention, lesson completion, weekly sess
 
 ```text
 Assetra/
-├── README.md
-├── docs/
-│   ├── product/           # PRD, roadmap, metrics, user journey
-│   ├── atlas/             # Atlas setup & deployment
-│   └── architecture/      # System design
-├── frontend/              # Next.js app (Atlas + Lumitopia)
-├── mle/                   # Market data ETL
-└── .github/workflows/     # CI/CD and scheduled jobs
+├── frontend/              # Next.js app: dashboard, API routes, Prisma schema, AI agent
+│   ├── app/               #   pages and API routes
+│   ├── components/        #   dashboard UI components
+│   ├── lib/               #   server-side domain logic
+│   ├── ai-agent/          #   self-contained AI advisor module
+│   └── prisma/            #   schema and migrations
+├── mle/                   # Python market data ETL (Yahoo → DailyMarketPrice → MarketFeature)
+├── docs/                  # Product, architecture and setup docs
+└── .github/workflows/     # MLE CI and daily price sync
 ```
+
+Each major folder has its own README:
+[`frontend/`](frontend/README.md) ·
+[`frontend/lib/`](frontend/lib/README.md) ·
+[`frontend/ai-agent/`](frontend/ai-agent/README.md) ·
+[`frontend/prisma/`](frontend/prisma/README.md) ·
+[`mle/`](mle/README.md) ·
+[`docs/`](docs/README.md)
 
 ---
 
@@ -149,23 +98,30 @@ Assetra/
 ```bash
 git clone https://github.com/mingch99/Assetra.git
 cd Assetra/frontend
-cp .env.example .env
-npm install && npx prisma migrate deploy && npm run dev
+cp .env.example .env          # fill in DATABASE_URL and API keys
+npm install
+npx prisma migrate deploy
+npm run dev                   # http://localhost:3000
 ```
 
-Atlas setup, environment variables, MLE, and deployment: [`docs/atlas/README.md`](docs/atlas/README.md)
+Environment variables, the market data pipeline, and Vercel deployment: [`docs/setup.md`](docs/setup.md)
 
 ---
 
-## Disclaimer
+## Roadmap
 
-Assetra provides **financial education and portfolio analytics**, not investment advice, brokerage, or tax services. Users are responsible for their own financial decisions.
+| Status | Item |
+|--------|------|
+| Done | Auth, holdings, balance sheet, groups, EN/ZH |
+| Done | Live quotes, Plaid import, allocation and value charts |
+| Done | Daily market data ETL + features + CI |
+| Done | Risk snapshot, AI advisor |
+| Next | Give the AI advisor the stored market history (returns, volatility, trends) |
+| Next | Put the portfolio value-history chart on the dashboard (component and API exist) |
+| Next | Frontend CI (lint + typecheck) |
+| Later | Deeper risk metrics (correlation, drawdown, VaR) |
 
----
-
-## License
-
-[MIT](LICENSE) © 2026 Mingcheng Fan
+Details: [`docs/product/roadmap.md`](docs/product/roadmap.md)
 
 ---
 
@@ -173,10 +129,21 @@ Assetra provides **financial education and portfolio analytics**, not investment
 
 | Doc | Description |
 |-----|-------------|
-| [Product PRD](docs/product/PRD.md) | Vision, target users, MVP, principles, and glossary |
-| [Roadmap](docs/product/roadmap.md) | Milestones, engineering deliverables, and status |
-| [User journey](docs/product/user-journey.md) | Day 1 → Day 7 Lumitopia experience |
-| [Metrics](docs/product/metrics.md) | Success metrics and validation hypotheses |
-| [Atlas](docs/atlas/README.md) | Intelligence engine — setup, architecture, and deployment |
-| [System design](docs/architecture/system-design.md) | Assetra architecture, system boundaries, and naming |
-| [MLE](mle/README.md) | Market data and ETL pipeline |
+| [Product requirements](docs/product/PRD.md) | MVP goal, users, scope, non-goals |
+| [Roadmap](docs/product/roadmap.md) | What's done and what's next |
+| [System design](docs/architecture/system-design.md) | Components, data flow, data model |
+| [Setup & deployment](docs/setup.md) | Env vars, local dev, ETL, Vercel |
+| [Market data ETL](mle/README.md) | Price sync and feature computation |
+| [AI agent](frontend/ai-agent/README.md) | Advisor module and its boundaries |
+
+---
+
+## Disclaimer
+
+Assetra provides **portfolio tracking and analytics**, not investment advice, brokerage, or tax services. AI advisor output is for reference only. Users are responsible for their own financial decisions.
+
+---
+
+## License
+
+[MIT](LICENSE) © 2026 Mingcheng Fan

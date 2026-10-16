@@ -1,36 +1,94 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Assetra — frontend
 
-## Getting Started
+The Next.js app: dashboard UI, API route handlers, database access and the AI advisor. There is no separate backend; everything server-side runs in route handlers.
 
-First, run the development server:
+Setup, env vars and deployment: [`docs/setup.md`](../docs/setup.md).
 
 ```bash
+cp .env.example .env
+npm install
+npx prisma migrate deploy
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [Assetra](https://assetra-eight.vercel.app) with your browser to see the result.
+> This project uses Next.js 16, which has breaking changes from earlier versions. See [`AGENTS.md`](AGENTS.md).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Layout
 
-## Learn More
+```text
+frontend/
+├── app/
+│   ├── page.tsx              # Login / register
+│   ├── dashboard/page.tsx    # Main dashboard
+│   ├── forgot-password/      # Request reset email
+│   ├── reset-password/       # Set new password from emailed token
+│   └── api/                  # Route handlers (see below)
+├── components/               # Dashboard UI components
+├── lib/                      # Server-side domain logic + client API wrappers → lib/README.md
+├── ai-agent/                 # Self-contained AI advisor module → ai-agent/README.md
+├── prisma/                   # Schema and migrations → prisma/README.md
+└── types/asset.ts            # Shared Asset / Group / HistoryRange types
+```
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Pages
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Route | Contents |
+|-------|----------|
+| `/` | Login / register |
+| `/dashboard` | `PortfolioCard` (totals, cash / debt / real estate), `ReturnVolatilityCard`, `AllocationChart`, `AssetTable` (holdings, groups, broker import), `AgentChatWidget` |
+| `/forgot-password`, `/reset-password` | Password reset flow |
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Components
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Component | Role |
+|-----------|------|
+| `PortfolioCard` | Total assets, debt, net equity, P&L; edit cash / debt / real estate |
+| `AllocationChart` | Allocation by type, group or crypto bucket |
+| `ReturnVolatilityCard` | Portfolio return / volatility from stored market features |
+| `AssetTable` | Holdings list with live prices and P&L; hosts `AddAssetMenu` and `GroupManager` |
+| `AddAssetMenu` | Entry point for `AssetForm` (manual add with symbol search) and `BrokerImportControls` (Plaid) |
+| `GroupManager` | Create, rename, delete groups |
+| `PortfolioValueChart` | Value over time for 7d / 30d / 90d / YTD / 1Y — **not rendered anywhere yet** |
+| `UserMenu` | Profile, password change, account deletion, logout |
+| `LanguageSwitcher` | EN / 中文 |
+
+---
+
+## API routes
+
+All routes except auth entry points and the Plaid webhook require a session cookie and return `{ data }` or `{ error }`.
+
+| Route | Methods | Purpose |
+|-------|---------|---------|
+| `/api/auth/register` · `login` · `logout` · `me` | POST / GET | Session auth |
+| `/api/auth/profile` · `password` · `account` | PUT / DELETE | Profile, password, account deletion |
+| `/api/auth/forgot-password` · `reset-password` | POST | Password reset |
+| `/api/assets` | GET, POST | List / create holdings |
+| `/api/assets/[id]` | GET, PUT, DELETE | Single holding |
+| `/api/groups`, `/api/groups/[id]` | CRUD | Asset groups |
+| `/api/portfolio` | GET, PUT | Cash, debt, real-estate amounts |
+| `/api/portfolio/history?range=` | GET | Value history (`7d`, `30d`, `90d`, `ytd`, `1y`) |
+| `/api/portfolio/risk` | GET | Weighted return / volatility from `MarketFeature` |
+| `/api/quotes` | GET | Live quotes for the user's holdings |
+| `/api/symbols/search?q=` | GET | US stock / ETF (Finnhub) and supported crypto search |
+| `/api/broker/link/token` · `link/exchange` | POST | Plaid Link flow |
+| `/api/broker/connections`, `connections/[id]` | GET, DELETE | List / disconnect brokers |
+| `/api/broker/sync` | POST | Re-sync broker holdings |
+| `/api/broker/webhook` | POST | Plaid webhook (no session) |
+| `/api/ai-agent/chat` | POST | Streaming AI advisor reply |
+
+---
+
+## Conventions
+
+- Route handlers stay thin: auth → parse → call `lib/*` → respond.
+- Database access only through `lib/*` (via `lib/prisma.ts`), never from components.
+- Client components call the API through `lib/api/*`, not `fetch` directly.
+- All UI strings go through `lib/i18n` (`en.ts` and `zh.ts` must have the same keys).
+- All amounts are USD.

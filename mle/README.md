@@ -1,134 +1,109 @@
-# Atlas MLE — Architecture V1
+# Market data ETL (mle/)
 
-Data pipeline for Atlas portfolio risk features (volatility, correlation, VaR, etc.).
+Batch pipeline that stores **daily market data** for every symbol held in Assetra and derives features from it. The stored history is the data source for the portfolio risk card and, next, the AI advisor.
 
-## Goal
-
-Persist **daily market prices** so the risk engine can run offline analysis without hitting live quote APIs on every request.
-
-## V1 data flow
+## Data flow
 
 ```text
-Asset table (your holdings)
-        ↓
-Yahoo Finance (historical)  →  sync_prices.py / GitHub Action  →  DailyMarketPrice
-                                                                    ↓
-                                                          compute_market_features.py
-                                                                    ↓
-                                                              MarketFeature
-                                                                    ↓
-                                                          (later) Risk API → Dashboard
-
-Finnhub (live quotes)  →  frontend  →  “Refresh Quotes”
+Asset table (distinct Stock / ETF / Crypto symbols)
+        │
+        ▼
+sync_prices.py  ── Yahoo Finance (yfinance) ──▶  DailyMarketPrice   (OHLCV per symbol per day)
+        │
+        ▼
+compute_market_features.py  ─────────────────▶  MarketFeature      (MA20, returns, volatility)
+        │
+        ▼
+GET /api/portfolio/risk  →  dashboard return / volatility card
+(next) AI advisor context
 ```
 
-| Stage | Role |
-|--------|------|
-| **Yahoo Finance** | Daily OHLCV for risk-engine history |
-| **Finnhub** | Live quotes in the app only |
-| **Scheduler** | `sync_prices.py` locally, or GitHub Action on weekdays |
-| **Database** | `DailyMarketPrice` → `MarketFeature` |
+| Source | Used for |
+|--------|----------|
+| **Yahoo Finance** (this pipeline) | Full daily OHLCV history |
+| **Finnhub / CoinGecko** (app) | Live quotes; close-only backfill when a new symbol is added (see [system design](../docs/architecture/system-design.md#two-writers-for-market-data)) |
 
-## Repo layout
+Both tables are shared across users and keyed by `(symbol, date)`. Re-runs upsert, so running every day is safe.
+
+## Layout
 
 ```text
 mle/
-├── README.md
-├── requirements.txt
-├── requirements-dev.txt            # pytest (+ runtime deps)
+├── requirements.txt          # runtime: yfinance, pandas, psycopg
+├── requirements-dev.txt      # + pytest
 ├── pytest.ini
 ├── scripts/
-│   ├── price_db.py                 # shared fetch / upsert / load symbols
-│   ├── sync_prices.py              # portfolio / explicit symbols → DB
-│   └── compute_market_features.py  # DailyMarketPrice → MarketFeature
-└── tests/                          # unit tests (no live Yahoo / DB)
+│   ├── price_db.py           # .env loading, Yahoo fetch, upsert, load portfolio symbols
+│   ├── sync_prices.py        # CLI: symbols → Yahoo → DailyMarketPrice
+│   └── compute_market_features.py  # CLI: DailyMarketPrice → MarketFeature
+└── tests/                    # unit tests, no network or DB
 ```
 
-## Milestone checklist
-
-1. [x] Architecture V1
-2. [x] Yahoo fetch + upsert (`price_db` / `sync_prices`)
-3. [x] `DailyMarketPrice` schema
-4. [x] Auto sync from `Asset` + GitHub Action cron
-5. [x] `MarketFeature` schema (MA20, 7d/30d return, 30d volatility)
-6. [x] Compute features from `DailyMarketPrice`
-7. [x] Unit tests + CI (`mle-ci.yml`)
-8. [ ] Risk metrics API + UI
-
-## Local: sync everything in your portfolio
+## Setup
 
 ```bash
 cd mle
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+```
 
-# Reads distinct Stock/ETF/Crypto symbols from Asset → Yahoo → DailyMarketPrice
-python scripts/sync_prices.py --period 1mo
+`DATABASE_URL` is read from the environment, or from `frontend/.env`.
 
-# Daily incremental (recent bars only)
+## Sync prices
+
+```bash
+# All symbols in Asset; first run, fill a year of history
+python scripts/sync_prices.py --period 1y
+
+# Daily incremental (what the cron runs)
 python scripts/sync_prices.py --period 5d
 
-# Or force an explicit list
+# Explicit list
 python scripts/sync_prices.py --symbols TSLA,AAPL,NVDA --period 1y
 ```
 
-Needs `DATABASE_URL` in `frontend/.env`.
+`--period` accepts any yfinance period (`5d`, `1mo`, `1y`, …). Crypto symbols are stored as in `Asset` (`BTC`) but requested from Yahoo as `BTC-USD`.
 
 ## Compute market features
-
-After prices exist in `DailyMarketPrice`:
 
 ```bash
 python scripts/compute_market_features.py
 python scripts/compute_market_features.py --symbols TSLA,AAPL
 ```
 
+Price `P` = `adjClose` when present, else `close`. Windows are in **trading days** (rows), not calendar days.
+
 | Column | Definition |
 |--------|------------|
-| `ma20` | 20-trading-day SMA of price (`adjClose` else `close`) |
-| `return7d` | `P_t / P_{t-7} - 1` |
-| `return30d` | `P_t / P_{t-30} - 1` |
-| `volatility30d` | Annualized std of daily returns over 30 days (`× √252`) |
+| `ma20` | 20-day simple moving average of `P` |
+| `return7d` | `P_t / P_{t-7} − 1` |
+| `return30d` | `P_t / P_{t-30} − 1` |
+| `return1y` | `P_t / P_{t-250} − 1` |
+| `returnYtd` | `P_t / P_(first bar of the year) − 1` |
+| `volatility7d` / `30d` / `1y` | Sample std of daily returns over 7 / 30 / 250 days × √252 |
+| `volatilityYtd` | Same, over all daily returns since the first bar of the year |
 
-Early rows stay `NULL` until the window is full. The GitHub Action runs this after each price sync.
+Values stay `NULL` until the window is full. The same math is implemented in TypeScript in `frontend/lib/market/features.ts`; change both together.
 
 ## Tests & CI
 
-Unit tests cover ticker mapping, Yahoo row parsing (mocked), feature math, and sync target resolution. They **do not** hit Yahoo or Postgres.
-
 ```bash
-cd mle
-python3 -m venv .venv
-source .venv/bin/activate
 pip install -r requirements-dev.txt
 pytest
 ```
 
-CI workflow: [`.github/workflows/mle-ci.yml`](../.github/workflows/mle-ci.yml) — runs `pytest` on push/PR when `mle/**` changes.
+Tests cover ticker mapping, Yahoo row parsing (mocked), feature math and sync target resolution. They do not call Yahoo or Postgres.
 
-## Automatic schedule (GitHub Actions)
+CI: [`.github/workflows/mle-ci.yml`](../.github/workflows/mle-ci.yml) runs `pytest` on pushes / PRs touching `mle/**`.
 
-Workflow: [`.github/workflows/sync-daily-prices.yml`](../.github/workflows/sync-daily-prices.yml)
+## Schedule
 
-- Runs **weekdays 22:00 UTC** (after US market close)
-- Can also run manually: GitHub → **Actions** → **Sync daily market prices** → **Run workflow**
+[`.github/workflows/sync-daily-prices.yml`](../.github/workflows/sync-daily-prices.yml) runs **weekdays 22:00 UTC** (after US close): `sync_prices.py --period 5d`, then `compute_market_features.py`. It can also be triggered manually from the Actions tab.
 
-**One-time setup**
-
-1. Push this repo (so the workflow file is on GitHub)
-2. GitHub → repo → **Settings** → **Secrets and variables** → **Actions**
-3. New secret: name `DATABASE_URL`, value = your Neon **pooled** connection string (same as Vercel / `frontend/.env`)
-
-Until the secret is set, the Action will fail with a missing URL.
+Requires repository secret `DATABASE_URL` (Neon pooled URL, same as the app). Without it the job fails.
 
 ## Inspect data
-
-```bash
-cd frontend && npx prisma studio
-```
-
-Open **DailyMarketPrice** / **MarketFeature**, or in Neon SQL Editor:
 
 ```sql
 SELECT symbol, COUNT(*), MIN(date), MAX(date)
@@ -136,18 +111,18 @@ FROM "DailyMarketPrice"
 GROUP BY symbol
 ORDER BY symbol;
 
-SELECT symbol, date, ma20, "return7d", "return30d", "volatility30d"
+SELECT symbol, date, ma20, "return30d", "volatility30d"
 FROM "MarketFeature"
 ORDER BY symbol, date DESC
 LIMIT 50;
 ```
 
-## Design notes
+## Status
 
-- Stored `symbol` matches your `Asset.symbol` (e.g. `BTC`); Yahoo may use `BTC-USD` only for the request (`yahoo_ticker_for` when `type` is `Crypto`).
-- Re-runs upsert on `(symbol, date)` — safe to run every day.
-
-## Out of scope (later)
-
-- Risk metrics (vol, correlation, VaR)
-- Auth-gated risk APIs / UI
+- [x] Yahoo fetch + upsert into `DailyMarketPrice`
+- [x] Auto-discover symbols from `Asset` + weekday cron
+- [x] `MarketFeature`: MA20, 7d / 30d / YTD / 1Y returns and volatility
+- [x] Unit tests + CI
+- [x] Portfolio risk API + dashboard card (`/api/portfolio/risk`)
+- [ ] Feed features to the AI advisor
+- [ ] Correlation, drawdown, VaR
